@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Star, Lock, Search as SearchIcon, ArrowDownUp, ChevronDown, BookOpen, CheckCircle2, Info, ArrowLeft, Users } from "lucide-react";
+import { Play, Star, Lock, Search as SearchIcon, ArrowDownUp, ChevronDown, BookOpen, CheckCircle2, Info, ArrowLeft, Users, Globe2, BadgeCheck, Clock, Coins, Share2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { TypeBadge } from "@/components/shared";
@@ -20,7 +21,14 @@ export default function TitlePage() {
   const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`] });
   const [more, setMore] = useState(false);
 
-  if (isError) return <div className="mx-auto max-w-xl px-4 py-24 text-center"><p className="font-display text-2xl">Title not found</p><Link href="/search" className="mt-4 inline-block text-primary">Browse the catalogue</Link></div>;
+  if (isError) return (
+    <div className="mx-auto max-w-xl px-4 py-24 text-center">
+      <Globe2 className="mx-auto h-9 w-9 text-primary" />
+      <p className="font-display mt-3 text-2xl">Not available in official English</p>
+      <p className="mt-2 text-sm text-muted-foreground">MANGASALT only lists titles with an official English release. We checked AniList and MangaDex and couldn't find one for this title.</p>
+      <Link href="/search" className="mt-5 inline-block rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Browse official titles</Link>
+    </div>
+  );
   if (isLoading || !t) return <TitleSkeleton />;
 
   const readable = ch.data?.chapters.filter((c) => c.inApp) ?? [];
@@ -39,7 +47,7 @@ export default function TitlePage() {
       </div>
 
       <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6 md:pt-8">
-        <button onClick={() => history.length > 1 ? history.back() : nav("/")} className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground" data-testid="button-back"><ArrowLeft className="h-4 w-4" />Back</button>
+        <div className="mb-4 flex items-center justify-between"><button onClick={() => history.length > 1 ? history.back() : nav("/")} className="glass-btn inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm text-foreground/80 transition hover:text-foreground active:scale-95" data-testid="button-back"><ArrowLeft className="h-4 w-4" />Back</button><ShareButton title={t.title} /></div>
         <div className="grid gap-6 md:grid-cols-[240px_1fr] md:gap-10">
           <motion.div initial={{ opacity: 0, y: 30, rotate: -3 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="relative mx-auto w-44 md:w-full">
@@ -76,6 +84,13 @@ export default function TitlePage() {
               <WorldLike id={t.id} liked={t.likedByMe} likes={t.likes} />
               <WorldSave id={t.id} saved={t.savedByMe} />
             </div>
+
+            {t.official.length > 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs md:justify-start" data-testid="row-official">
+                <span className="flex items-center gap-1 font-semibold text-emerald-500"><BadgeCheck className="h-4 w-4" />Official English</span>
+                {t.official.slice(0, 5).map((p) => <span key={p} className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-300">{p}</span>)}
+              </div>
+            )}
 
             <div className="mt-5 flex flex-wrap justify-center gap-1.5 md:justify-start">
               {t.genres.map((g) => (
@@ -136,7 +151,7 @@ function ChapterList({ id, data, loading, read, last }: { id: number; data?: Wor
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-semibold sm:text-2xl">Chapters</h2>
-          {data && <p className="mt-1 text-sm text-muted-foreground" data-testid="text-chapter-stats">{data.total} official English chapters · <span className="text-primary">{data.inApp} readable on MANGASALT</span></p>}
+          {data && <p className="mt-1 text-sm text-muted-foreground" data-testid="text-chapter-stats">{data.total} official English chapters · <span className="text-primary">{data.inApp} open in MANGASALT</span>{data.chapters.some((c) => c.access === "wait" || c.access === "coins") ? <> · {data.chapters.filter((c) => c.access === "free").length} free now</> : null}</p>}
         </div>
         {data && data.total > 0 && (
           <div className="flex w-full items-center gap-2 sm:w-auto">
@@ -156,7 +171,7 @@ function ChapterList({ id, data, loading, read, last }: { id: number; data?: Wor
         <div className="mt-4 flex gap-3 rounded-2xl border border-border bg-card p-4 text-sm" data-testid="notice-no-inapp">
           <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <p className="text-muted-foreground">
-            {data.total === 0 ? "We couldn't find any official English chapters for this title yet." : "The official English publisher of this title doesn't allow its chapters to be shown inside other apps, so they can't be read on MANGASALT yet."}
+            {data.publishers?.length ? `This title is officially published in English on ${data.publishers.slice(0, 3).join(", ")}. ${data.publishers.length === 1 ? "That publisher doesn't" : "Those publishers don't"} allow their reader inside other apps, so its chapters can't open in MANGASALT yet.` : "We couldn't find official English chapters for this title yet."}
             {" "}Save it and you'll see it here the moment a licensed in-app edition becomes available.
           </p>
         </div>
@@ -172,7 +187,8 @@ function ChapterList({ id, data, loading, read, last }: { id: number; data?: Wor
                   <span className={`grid h-10 w-12 shrink-0 place-items-center rounded-lg text-sm font-bold ${c.inApp ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>{c.number}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{c.title || `Chapter ${c.number}`}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{c.publisher ?? "Official"} · {new Date(c.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</span>
+                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">{c.publisher ?? "Official"}{c.publishedAt ? ` · ${new Date(c.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}` : ""}
+                      {c.inApp && <AccessTag a={c.access} />}</span>
                   </span>
                   {c.inApp ? (current ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Reading</span>
                     : isRead ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Play className="h-4 w-4 text-primary" />)
@@ -198,6 +214,24 @@ function ChapterList({ id, data, loading, read, last }: { id: number; data?: Wor
       {data && data.total > 0 && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No chapter matches “{q}”.</p>}
     </section>
   );
+}
+
+function AccessTag({ a }: { a: string | null }) {
+  if (a === "wait") return <span className="inline-flex items-center gap-0.5 rounded bg-sky-500/15 px-1.5 text-[10px] font-semibold text-sky-600 dark:text-sky-300"><Clock className="h-2.5 w-2.5" />Wait-free</span>;
+  if (a === "coins") return <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-300"><Coins className="h-2.5 w-2.5" />Coins</span>;
+  return <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">Free</span>;
+}
+
+function ShareButton({ title }: { title: string }) {
+  const { toast } = useToast();
+  const share = async () => {
+    const url = window.location.href;
+    try {
+      if (navigator.share) await navigator.share({ title: `${title} on MANGASALT`, url });
+      else { await navigator.clipboard.writeText(url); toast({ title: "Link copied", description: "Share it with a friend." }); }
+    } catch {}
+  };
+  return <Button variant="outline" size="icon" className="glass-btn h-10 w-10 rounded-full" onClick={share} aria-label="Share" data-testid="button-share"><Share2 className="h-4 w-4" /></Button>;
 }
 
 function TitleSkeleton() {

@@ -20,12 +20,13 @@ async function get(path: string) {
 export type OfficialChapter = { key: string; number: string; title: string | null; publishedAt: string; sources: { publisher: string; url: string; embeddable: boolean }[] };
 
 const mdIdCache = new Map<number, string | null>();
+const mdEngCache = new Map<number, string | null>();
 async function findMangaDexId(anilistId: number, titles: string[]): Promise<string | null> {
   if (mdIdCache.has(anilistId)) return mdIdCache.get(anilistId)!;
   for (const t of titles.filter(Boolean)) {
     const d = await get(`/manga?title=${encodeURIComponent(t)}&limit=10&contentRating[]=safe&contentRating[]=suggestive`);
     const m = (d.data ?? []).find((x: any) => String(x.attributes?.links?.al ?? "") === String(anilistId));
-    if (m) { mdIdCache.set(anilistId, m.id); return m.id; }
+    if (m) { mdIdCache.set(anilistId, m.id); mdEngCache.set(anilistId, m.attributes?.links?.engtl ?? null); return m.id; }
   }
   mdIdCache.set(anilistId, null);
   return null;
@@ -65,4 +66,12 @@ export async function officialChapters(anilistId: number, titles: string[]) {
   const chapters = Array.from(byNum.values()).sort((x, y) => (parseFloat(x.number) || 0) - (parseFloat(y.number) || 0));
   chapters.forEach((c) => c.sources.sort((a, b) => Number(b.embeddable) - Number(a.embeddable)));
   return { found: true, chapters };
+}
+
+/** Second check for titles AniList has no English publisher for: MangaDex's "official English" (engtl) link. */
+export async function mangadexEnglish(anilistId: number, titles: string[]): Promise<string | null> {
+  await findMangaDexId(anilistId, titles);
+  const u = mdEngCache.get(anilistId);
+  if (!u) return null;
+  try { return publisherName(undefined, u.startsWith("http") ? u : `https://${u}`); } catch { return "Official publisher"; }
 }

@@ -37,3 +37,24 @@ Creators publish their own manga, manhwa, manhua or comics at `/#/studio`.
 - Published series appear on Home ("Creator originals"), in Library, and in Search, with likes, comments, follows and the in-app reader.
 
 Only creator-owned or properly licensed work may be uploaded. Scanlations and images taken from other sites are not allowed.
+
+## Official English only
+
+Every title in the catalogue must have a verified official English edition:
+
+1. AniList's English-language publisher / reading-platform links (WEBTOON, Tapas, MANGA Plus, VIZ, K MANGA, Yen Press...).
+2. If AniList lists none, MangaDex's "official English" link is checked before the title is hidden.
+
+Results are cached in the `official_en` table (negatives are re-checked weekly). Titles without an official English edition are removed from Home, Search, Trending and recommendations, and their pages show "Not available in official English".
+
+## In-app chapters
+
+- **MANGA Plus** (free official chapters, from the MangaDex publisher index) and **Tapas** (every official episode) open in their publisher's own reader inside MANGASALT. Tapas episodes are tagged Free, Wait-free or Coins.
+- WEBTOON, VIZ, K MANGA, Tappytoon, Comikey and INKR block their reader inside other sites, so those titles show which platform publishes them instead.
+- No chapter images are copied from other websites.
+
+## Extras
+
+- Animated day/night switch with a circular screen reveal.
+- Transparent glass navigation bar and reader controls (keyboard: arrows for prev/next, F fullscreen, H hide controls).
+- Reading stats with a daily streak on Profile, "Surprise me" random pick, share button on title pages.

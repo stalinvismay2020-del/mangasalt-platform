@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Flame, Crown, Star, TrendingUp, Trophy, Users, ArrowUpRight, Sparkles } from "lucide-react";
 import { TypeBadge } from "@/components/shared";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { compact } from "@/lib/app-context";
 import type { WorldCard, WorldPage } from "@shared/world";
 
@@ -16,32 +17,42 @@ const TYPES = [["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua",
 const scoreOf = (order: string, s: WorldCard) => (order === "score" ? (s.score ?? 0) : s.popularity);
 const fmt = (order: string, s: WorldCard) => (order === "score" ? `${((s.score ?? 0) / 10).toFixed(1)} score` : `${compact(s.popularity)} readers`);
 
-/** Blurred covers drifting behind the page, plus embers rising. */
+/** Covers floating behind the page, plus embers rising. Stronger and closer on phones. */
 function FloatingBackdrop({ items }: { items: WorldCard[] }) {
   const reduce = useReducedMotion();
-  const spots = [
-    { l: "-6%", t: "4%", w: 150, r: -14, d: 9 }, { l: "78%", t: "2%", w: 130, r: 12, d: 11 }, { l: "86%", t: "38%", w: 110, r: -8, d: 10 },
-    { l: "-4%", t: "46%", w: 120, r: 10, d: 12 }, { l: "70%", t: "70%", w: 140, r: -12, d: 13 }, { l: "6%", t: "78%", w: 100, r: 8, d: 9.5 },
-  ];
-  const embers = useMemo(() => Array.from({ length: 18 }, (_, i) => ({ x: (i * 53) % 100, s: 2 + (i % 4), d: 6 + (i % 5) * 1.4, delay: (i * 0.7) % 6 })), []);
+  const mobile = useIsMobile();
+  const spots = mobile
+    ? [
+        { l: "-10%", t: "3%", w: 120, r: -16, d: 6 }, { l: "74%", t: "1%", w: 110, r: 14, d: 7 }, { l: "80%", t: "22%", w: 96, r: -10, d: 6.5 },
+        { l: "-12%", t: "30%", w: 104, r: 12, d: 7.5 }, { l: "78%", t: "46%", w: 112, r: -14, d: 6.8 }, { l: "-8%", t: "58%", w: 96, r: 9, d: 7.2 },
+        { l: "76%", t: "70%", w: 104, r: 11, d: 6.2 }, { l: "-10%", t: "84%", w: 110, r: -12, d: 7.8 },
+      ]
+    : [
+        { l: "-6%", t: "4%", w: 150, r: -14, d: 9 }, { l: "78%", t: "2%", w: 130, r: 12, d: 11 }, { l: "86%", t: "38%", w: 110, r: -8, d: 10 },
+        { l: "-4%", t: "46%", w: 120, r: 10, d: 12 }, { l: "70%", t: "70%", w: 140, r: -12, d: 13 }, { l: "6%", t: "78%", w: 100, r: 8, d: 9.5 },
+      ];
+  const amp = mobile ? { y: 48, x: 22, r: 12 } : { y: 26, x: 10, r: 6 };
+  const op = mobile ? 0.3 : 0.16;
+  const embers = useMemo(() => Array.from({ length: mobile ? 30 : 18 }, (_, i) => ({ x: (i * 53) % 100, s: (mobile ? 3 : 2) + (i % 4), d: (mobile ? 4.5 : 6) + (i % 5) * 1.2, delay: (i * 0.5) % 6 })), [mobile]);
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {items.slice(3, 9).map((m, i) => {
+      {items.slice(3, 3 + spots.length).map((m, i) => {
         const p = spots[i];
         return (
-          <motion.img key={m.id} src={m.cover} alt="" className="absolute rounded-2xl object-cover opacity-[0.16] blur-[2px] saturate-150"
-            style={{ left: p.l, top: p.t, width: p.w, aspectRatio: "2/3" }}
-            initial={{ opacity: 0, rotate: p.r }} animate={reduce ? { opacity: 0.16 } : { opacity: 0.16, y: [0, -26, 0], x: [0, 10, 0], rotate: [p.r, p.r + 6, p.r] }}
-            transition={{ duration: p.d, repeat: Infinity, ease: "easeInOut", delay: i * 0.4 }} />
+          <motion.img key={m.id} src={m.cover} alt="" className="absolute rounded-2xl object-cover saturate-150 shadow-2xl"
+            style={{ left: p.l, top: p.t, width: p.w, aspectRatio: "2/3", filter: mobile ? "blur(1px)" : "blur(2px)" }}
+            initial={{ opacity: 0, rotate: p.r, scale: 0.8 }}
+            animate={reduce ? { opacity: op } : { opacity: op, scale: [1, 1.06, 1], y: [0, -amp.y, 0, amp.y * 0.4, 0], x: [0, amp.x, 0, -amp.x * 0.6, 0], rotate: [p.r, p.r + amp.r, p.r, p.r - amp.r * 0.5, p.r] }}
+            transition={{ duration: p.d, repeat: Infinity, ease: "easeInOut", delay: i * 0.35 }} />
         );
       })}
       {!reduce && embers.map((e, i) => (
-        <motion.span key={i} className="absolute bottom-0 rounded-full bg-primary shadow-[0_0_10px_hsl(var(--primary))]"
+        <motion.span key={i} className="absolute bottom-0 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary))]"
           style={{ left: `${e.x}%`, width: e.s, height: e.s }}
-          animate={{ y: [0, -900], opacity: [0, 0.9, 0], x: [0, i % 2 ? 30 : -30] }}
+          animate={{ y: [0, mobile ? -1400 : -900], opacity: [0, 1, 0], x: [0, i % 2 ? 40 : -40, i % 2 ? -10 : 10] }}
           transition={{ duration: e.d, repeat: Infinity, delay: e.delay, ease: "easeOut" }} />
       ))}
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background" />
+      <div className={`absolute inset-0 bg-gradient-to-b from-transparent ${mobile ? "via-background/20" : "via-background/40"} to-background`} />
     </div>
   );
 }
@@ -67,10 +78,12 @@ function Ticker({ items }: { items: WorldCard[] }) {
 function Podium({ items, order }: { items: WorldCard[]; order: string }) {
   const [, nav] = useLocation();
   const reduce = useReducedMotion();
+  const mobile = useIsMobile();
+  const lift = (rank: number) => (mobile ? (rank === 1 ? -22 : -16) : rank === 1 ? -12 : -8);
   const slots = [items[1], items[0], items[2]].map((s, i) => ({ s, rank: [2, 1, 3][i] })).filter((x) => x.s);
   const h = { 1: "h-28 sm:h-32", 2: "h-20 sm:h-24", 3: "h-14 sm:h-16" } as Record<number, string>;
   return (
-    <div className="relative mt-10 grid grid-cols-3 items-end gap-2 sm:gap-5">
+    <div className="relative mt-16 grid grid-cols-3 items-end gap-2 sm:mt-12 sm:gap-5">
       <motion.div aria-hidden className="pointer-events-none absolute inset-x-0 -top-6 -z-10 mx-auto h-64 w-64 rounded-full blur-3xl"
         style={{ background: items[0]?.color ?? "hsl(var(--primary))" }}
         animate={{ scale: [1, 1.2, 1], opacity: [0.25, 0.5, 0.25] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
@@ -78,8 +91,14 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
         <motion.button key={s.id} onClick={() => nav(`/title/${s.id}`)} data-testid={`podium-${rank}`}
           initial={{ opacity: 0, y: 80, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 18, delay: [0.2, 0, 0.35][i] }}
           className="group flex min-w-0 flex-col items-center text-center">
-          <motion.div className="relative" animate={reduce ? undefined : { y: [0, rank === 1 ? -12 : -8, 0], rotate: rank === 2 ? [-2, 1, -2] : rank === 3 ? [2, -1, 2] : [0, 0, 0] }}
-            transition={{ duration: 3.4 + i * 0.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.6 }}>
+          <motion.div className="relative" animate={reduce ? undefined : { y: [0, lift(rank), 0], scale: mobile ? [1, 1.05, 1] : [1, 1, 1], rotate: rank === 2 ? (mobile ? [-5, 3, -5] : [-2, 1, -2]) : rank === 3 ? (mobile ? [5, -3, 5] : [2, -1, 2]) : mobile ? [-2, 2, -2] : [0, 0, 0] }}
+            transition={{ duration: (mobile ? 2.6 : 3.4) + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}>
+            {rank === 1 && !reduce && [0, 1, 2, 3, 4].map((k) => (
+              <motion.span key={k} className="absolute z-20 text-amber-300" style={{ left: `${[8, 80, 92, -6, 50][k]}%`, top: `${[10, 6, 60, 70, 96][k]}%` }}
+                animate={{ opacity: [0, 1, 0], scale: [0.4, 1.2, 0.4], rotate: [0, 90, 180] }} transition={{ duration: 1.8, repeat: Infinity, delay: k * 0.4 }}>
+                <Sparkles className="h-3.5 w-3.5" />
+              </motion.span>
+            ))}
             {rank === 1 && (
               <>
                 <motion.div className="absolute -inset-[3px] rounded-[14px]" style={{ background: "conic-gradient(from 0deg, hsl(var(--primary)), #fbbf24, transparent 40%, hsl(var(--primary)))" }}
@@ -93,7 +112,7 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
               className={`relative aspect-[2/3] rounded-xl object-cover shadow-2xl ring-1 ring-white/10 ${rank === 1 ? "w-24 sm:w-36" : "w-[72px] sm:w-28"}`} />
             {rank === 1 && <span className="shimmer pointer-events-none absolute inset-0 overflow-hidden rounded-xl" />}
             <motion.span className="absolute -bottom-3 left-1/2 -z-10 h-3 w-3/4 -translate-x-1/2 rounded-full bg-black/50 blur-md"
-              animate={reduce ? undefined : { scaleX: [1, 0.8, 1], opacity: [0.6, 0.35, 0.6] }} transition={{ duration: 3.4 + i * 0.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.6 }} />
+              animate={reduce ? undefined : { scaleX: [1, 0.8, 1], opacity: [0.6, 0.35, 0.6] }} transition={{ duration: (mobile ? 2.6 : 3.4) + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }} />
           </motion.div>
           <p className="mt-3 line-clamp-2 w-full px-1 text-xs font-semibold leading-tight group-hover:text-primary sm:text-sm">{s.title}</p>
           <div className="mt-1"><TypeBadge type={s.type} /></div>
@@ -110,6 +129,8 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
 }
 
 function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: string; max: number }) {
+  const mobile = useIsMobile();
+  const reduce = useReducedMotion();
   const pct = Math.max(6, (scoreOf(order, s) / max) * 100);
   const hot = rank <= 10;
   return (
@@ -118,7 +139,9 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
       <Link href={`/title/${s.id}`} className="group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl px-2 py-3 transition-all hover:bg-card hover:shadow-xl sm:gap-4" data-testid={`row-rank-${s.id}`}>
         <span className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(90deg, ${s.color ?? "hsl(var(--primary))"}22, transparent 60%)` }} />
         <span className="rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums transition-transform duration-300 group-hover:scale-110 sm:w-10 sm:text-4xl">{rank}</span>
-        <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={s.cover} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-md ring-1 ring-white/5" loading="lazy" />
+        <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={s.cover} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-lg ring-1 ring-white/5" loading="lazy"
+          animate={reduce ? undefined : { y: [0, mobile ? -7 : -3, 0], rotate: [0, rank % 2 ? (mobile ? 4 : 1.5) : (mobile ? -4 : -1.5), 0] }}
+          transition={{ duration: (mobile ? 2.4 : 3.2) + (rank % 4) * 0.3, repeat: Infinity, ease: "easeInOut", delay: (rank % 6) * 0.25 }} />
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{s.title}</h3>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

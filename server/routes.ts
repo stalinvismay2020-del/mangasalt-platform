@@ -1,12 +1,13 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
-import { storage, verifyPassword, studio } from "./storage";
+import { storage, verifyPassword, studio, readingStats } from "./storage";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
+import { tapasEpisodes } from "./tapas";
 import { officialChapters } from "./mangadex";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
@@ -154,15 +155,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }));
   app.get("/api/world/title/:id/chapters", wrap(async (req, res) => {
     const id = Number(req.params.id);
-    const t = await worldTitle(id);
-    const titles = [t.title, t.altTitle ?? ""];
-    const r = await officialChapters(id, titles);
-    // Only chapters whose official publisher allows in-app reading are returned with a reader source.
-    const chapters = r.chapters.map((c) => {
-      const src = c.sources.find((s) => s.embeddable);
-      return { key: c.key, number: c.number, title: c.title, publishedAt: c.publishedAt, inApp: !!src, publisher: src?.publisher ?? c.sources[0]?.publisher ?? null, src: src?.url ?? null };
+    const t: any = await worldTitle(id);
+    const [r, tapas] = await Promise.all([
+      officialChapters(id, [t.title, t.altTitle ?? ""]).catch(() => ({ found: false, chapters: [] as any[] })),
+      t.tapasUrl ? tapasEpisodes(t.tapasUrl).catch(() => []) : Promise.resolve([]),
+    ]);
+    // Official chapters from MangaDex's publisher index (MANGA Plus etc). Only embeddable publishers open in the app.
+    const md = r.chapters.map((c: any) => {
+      const src = c.sources.find((s: any) => s.embeddable);
+      return { key: c.key, number: c.number, title: c.title, publishedAt: c.publishedAt, inApp: !!src, publisher: src?.publisher ?? c.sources[0]?.publisher ?? null, src: src?.url ?? null, access: src ? "free" : null };
     });
-    res.json({ found: r.found, total: chapters.length, inApp: chapters.filter((c) => c.inApp).length, chapters });
+    // Tapas: every official episode opens in Tapas's own reader inside the app.
+    const tp = tapas.map((e) => ({ key: e.key, number: e.number, title: e.title, publishedAt: e.publishedAt, inApp: true, publisher: "Tapas", src: e.src, access: e.access }));
+    const chapters = tp.length > md.filter((c: any) => c.inApp).length ? tp : md;
+    res.json({ found: r.found || tp.length > 0, total: chapters.length, inApp: chapters.filter((c: any) => c.inApp).length, chapters, publishers: t.official });
+  }));
+  app.get("/api/me/stats", requireAuth, (req, res) => res.json(readingStats((req as any).user.id)));
+  app.get("/api/world/random", wrap(async (req, res) => {
+    const type = typeof req.query.type === "string" ? req.query.type : undefined;
+    const page = 1 + Math.floor(Math.random() * 8);
+    const r = await worldSearch({ sort: "popular", type, page, perPage: 30 });
+    const pick = r.items[Math.floor(Math.random() * r.items.length)];
+    if (!pick) return res.status(404).json({ message: "Nothing to pick" });
+    res.json({ id: pick.id, title: pick.title });
   }));
   app.post("/api/world/title/:id/like", requireAuth, (req, res) => { const r = storage.toggleWorld("world_likes", (req as any).user.id, Number(req.params.id)); res.json({ liked: r.on, likes: r.likes }); });
   app.post("/api/world/title/:id/save", requireAuth, (req, res) => res.json({ saved: storage.toggleWorld("world_saves", (req as any).user.id, Number(req.params.id)).on }));

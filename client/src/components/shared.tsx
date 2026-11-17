@@ -1,4 +1,5 @@
 import { API_BASE } from "@/lib/queryClient";
+import { flushSync } from "react-dom";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -230,7 +231,7 @@ export function TopBar() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => { const h = () => setScrolled(window.scrollY > 12); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   return (
-    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-border/60 bg-background/85 backdrop-blur-xl" : "bg-background/0"}`}>
+    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-white/10 bg-background/35 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:h-16 sm:px-6">
         <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">
           MANGA<span className="text-primary">SALT</span>
@@ -250,7 +251,7 @@ export function TopBar() {
           </Link>
           <ThemeSwitch />
           <Link href="/profile" aria-label="Profile" data-testid="button-profile"
-            className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground">
+            className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-white/5 text-muted-foreground backdrop-blur-md transition hover:bg-white/10 hover:text-foreground">
             {user ? <Avatar user={user} size={34} /> : <UserIcon className="h-4 w-4" />}
           </Link>
         </div>
@@ -263,7 +264,7 @@ export function BottomNav() {
   const [loc] = useLocation();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
-      <div className="mx-auto flex max-w-md items-center justify-between rounded-2xl border border-border bg-card/90 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
+      <div className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
         {TABS.map((t) => {
           const active = loc === t.href;
           const Icon = t.icon;
@@ -271,7 +272,7 @@ export function BottomNav() {
             <Link key={t.href} href={t.href} data-testid={`tab-${t.label.toLowerCase()}`} aria-current={active ? "page" : undefined}
               className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition ${active ? "text-primary" : "text-muted-foreground"}`}>
               {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15 shadow-[0_0_24px_hsl(var(--primary)/0.35)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-              <Icon className="relative h-5 w-5" />
+              <motion.span className="relative" animate={active ? { y: [0, -4, 0], scale: [1, 1.18, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.45 }}><Icon className={`h-5 w-5 ${active ? "drop-shadow-[0_0_8px_hsl(var(--primary))]" : ""}`} /></motion.span>
               <span className="relative">{t.label}</span>
             </Link>
           );
@@ -330,20 +331,58 @@ export function RankRow({ s, rank, score, max, unit = "likes" }: { s: SeriesCard
 }
 
 // ---------- Theme switch (sun / moon) ----------
+/** Animated day/night switch: the new theme spreads across the screen in a circle from the button. */
 export function ThemeSwitch({ className = "" }: { className?: string }) {
   const { theme, toggleTheme } = useApp();
   const dark = theme === "dark";
+  const [burst, setBurst] = useState(0);
+  const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    setBurst((b) => b + 1);
+    const doc: any = document;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!doc.startViewTransition || reduce) { toggleTheme(); return; }
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    const end = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+    const next = dark ? "light" : "dark";
+    const vt = doc.startViewTransition(() => { flushSync(toggleTheme); document.documentElement.classList.toggle("dark", next === "dark"); });
+    vt.ready.then(() => {
+      document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
+        { duration: 650, easing: "cubic-bezier(.65,0,.35,1)", pseudoElement: "::view-transition-new(root)" });
+    }).catch(() => {});
+  };
   return (
-    <button role="switch" aria-checked={dark} aria-label="Dark mode" onClick={toggleTheme} data-testid="switch-theme"
-      className={`relative flex h-8 w-[60px] shrink-0 items-center rounded-full border p-0.5 transition-colors duration-500 ${dark ? "border-white/10 bg-[hsl(230_30%_14%)]" : "border-amber-300/60 bg-amber-100"} ${className}`}>
-      <Sun className={`absolute left-2 h-3.5 w-3.5 transition-opacity ${dark ? "opacity-40 text-white" : "opacity-0"}`} />
-      <Moon className={`absolute right-2 h-3.5 w-3.5 transition-opacity ${dark ? "opacity-0" : "opacity-50 text-amber-700"}`} />
-      <motion.span layout transition={{ type: "spring", stiffness: 500, damping: 32 }}
-        className={`relative z-10 grid h-6 w-6 place-items-center rounded-full shadow-md ${dark ? "ml-auto bg-[hsl(230_25%_30%)]" : "bg-white"}`}>
+    <button role="switch" aria-checked={dark} aria-label="Dark mode" onClick={onClick} data-testid="switch-theme"
+      className={`group relative flex h-8 w-[62px] shrink-0 items-center overflow-hidden rounded-full border p-0.5 transition-colors duration-700 ${dark ? "border-white/10 bg-gradient-to-br from-[hsl(232_45%_12%)] to-[hsl(260_40%_20%)]" : "border-sky-300/70 bg-gradient-to-br from-sky-300 to-amber-200"} ${className}`}>
+      {/* night sky: twinkling stars */}
+      {[[10, 7, 0], [20, 18, 0.6], [30, 9, 1.2], [14, 22, 1.8]].map(([l, t, d], i) => (
+        <motion.span key={i} className="absolute h-[2px] w-[2px] rounded-full bg-white" style={{ left: l, top: t }}
+          animate={dark ? { opacity: [0.2, 1, 0.2], scale: [0.8, 1.4, 0.8], y: 0 } : { opacity: 0, y: 10 }} transition={dark ? { duration: 1.8, repeat: Infinity, delay: d } : { duration: 0.3 }} />
+      ))}
+      {/* day sky: drifting clouds */}
+      {[[30, 15, 14], [40, 6, 10]].map(([l, t, w], i) => (
+        <motion.span key={i} className="absolute h-[6px] rounded-full bg-white/90" style={{ left: l, top: t, width: w }}
+          animate={dark ? { opacity: 0, y: 12 } : { opacity: 1, y: 0, x: [0, 4, 0] }} transition={dark ? { duration: 0.3 } : { x: { duration: 3 + i, repeat: Infinity, ease: "easeInOut" }, default: { duration: 0.4 } }} />
+      ))}
+      <motion.span layout transition={{ type: "spring", stiffness: 520, damping: 28 }}
+        className={`relative z-10 grid h-6 w-6 place-items-center rounded-full ${dark ? "ml-auto bg-gradient-to-br from-slate-100 to-indigo-200 shadow-[0_0_12px_rgba(199,210,254,.7)]" : "bg-gradient-to-br from-amber-300 to-orange-500 shadow-[0_0_14px_rgba(251,191,36,.9)]"}`}>
         <AnimatePresence mode="wait" initial={false}>
-          <motion.span key={theme} initial={{ rotate: -120, scale: 0.4, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} exit={{ rotate: 120, scale: 0.4, opacity: 0 }} transition={{ duration: 0.25 }}>
-            {dark ? <Moon className="h-3.5 w-3.5 fill-indigo-200 text-indigo-200" /> : <Sun className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />}
-          </motion.span>
+          {dark ? (
+            <motion.span key="moon" className="relative block h-6 w-6" initial={{ rotate: -90, scale: 0.3 }} animate={{ rotate: 0, scale: 1 }} exit={{ rotate: 90, scale: 0.3 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
+              <span className="absolute left-[7px] top-[5px] h-[5px] w-[5px] rounded-full bg-indigo-300/70" />
+              <span className="absolute left-[13px] top-[12px] h-[4px] w-[4px] rounded-full bg-indigo-300/70" />
+              <span className="absolute left-[6px] top-[14px] h-[3px] w-[3px] rounded-full bg-indigo-300/60" />
+            </motion.span>
+          ) : (
+            <motion.span key="sun" className="relative block h-6 w-6" initial={{ rotate: 90, scale: 0.3 }} animate={{ rotate: 0, scale: 1 }} exit={{ rotate: -90, scale: 0.3 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
+              <motion.span className="absolute inset-0" animate={{ rotate: 360 }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }}>
+                {Array.from({ length: 8 }).map((_, k) => <span key={k} className="absolute left-1/2 top-1/2 h-[3px] w-[1.5px] rounded bg-white/90" style={{ transform: `rotate(${k * 45}deg) translateY(-9px)` }} />)}
+              </motion.span>
+            </motion.span>
+          )}
+        </AnimatePresence>
+        <AnimatePresence>
+          {burst > 0 && <motion.span key={burst} className={`pointer-events-none absolute inset-0 rounded-full border-2 ${dark ? "border-indigo-200" : "border-amber-300"}`} initial={{ scale: 1, opacity: 0.9 }} animate={{ scale: 3, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }} />}
         </AnimatePresence>
       </motion.span>
     </button>

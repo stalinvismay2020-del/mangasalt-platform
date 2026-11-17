@@ -6,6 +6,7 @@ import { Flame, Star, TrendingUp, Clock, Trophy, Sparkles, Heart, BookOpen, Play
 import { Button } from "@/components/ui/button";
 import { useApp, TYPE_LABEL, compact } from "@/lib/app-context";
 import { asset, SeriesPoster } from "@/components/shared";
+import { SurpriseButton } from "@/components/surprise";
 import { WorldRail, STATUS_LABEL } from "@/components/world";
 import type { WorldHome, WorldCard, WorldShelfItem } from "@shared/world";
 import type { SeriesCard } from "@shared/schema";
@@ -67,7 +68,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
               <motion.p variants={rise} className="mx-auto mt-4 line-clamp-3 max-w-lg leading-relaxed text-foreground/80 md:mx-0">{strip(s.blurb)}</motion.p>
               <motion.div variants={rise} className="mt-6 flex flex-wrap justify-center gap-2 md:justify-start">
                 <Button size="lg" className="glow-primary gap-2 rounded-full px-6" onClick={() => nav(`/title/${s.id}`)} data-testid="button-hero-open"><BookOpen className="h-4 w-4" />View chapters</Button>
-                <Button size="lg" variant="outline" className="rounded-full" onClick={() => nav("/trending")} data-testid="button-hero-charts">See charts</Button>
+                <SurpriseButton />
               </motion.div>
             </motion.div>
           </AnimatePresence>

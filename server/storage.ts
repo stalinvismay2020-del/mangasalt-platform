@@ -422,3 +422,31 @@ export const studio = {
     sqlite.prepare(`DELETE FROM chapters WHERE id = ?`).run(chapterId);
   },
 };
+
+// ---------- official English verification cache (AniList links, then MangaDex "engtl" as a second check) ----------
+sqlite.exec(`CREATE TABLE IF NOT EXISTS official_en (anilist_id INTEGER PRIMARY KEY, sites TEXT, checked_at INTEGER NOT NULL)`);
+export const officialCache = {
+  get(id: number): string[] | null | undefined {
+    const r: any = sqlite.prepare(`SELECT sites, checked_at FROM official_en WHERE anilist_id = ?`).get(id);
+    if (!r) return undefined;
+    if (r.sites === null && Date.now() - r.checked_at > 7 * 864e5) return undefined; // re-check negatives weekly
+    return r.sites === null ? null : JSON.parse(r.sites);
+  },
+  set(id: number, sites: string[] | null) {
+    sqlite.prepare(`INSERT INTO official_en (anilist_id, sites, checked_at) VALUES (?,?,?) ON CONFLICT(anilist_id) DO UPDATE SET sites = excluded.sites, checked_at = excluded.checked_at`).run(id, sites ? JSON.stringify(sites) : null, Date.now());
+  },
+};
+
+// ---------- reading stats ----------
+export function readingStats(userId: number) {
+  const rows = sqlite.prepare(`SELECT anilist_id, chapter, at FROM world_history WHERE user_id = ? ORDER BY at`).all(userId) as any[];
+  const local = sqlite.prepare(`SELECT series_id, chapter_id, viewed_at AS at FROM history WHERE user_id = ?`).all(userId) as any[];
+  const chapters = new Set(rows.map((r) => `${r.anilist_id}:${r.chapter}`)).size + new Set(local.map((r) => r.chapter_id)).size;
+  const titles = new Set(rows.map((r) => r.anilist_id)).size + new Set(local.map((r) => r.series_id)).size;
+  const day = (t: number) => Math.floor((t + 5.5 * 3600e3) / 864e5); // IST calendar days
+  const days = new Set([...rows, ...local].map((r) => day(Number(r.at))));
+  let streak = 0; const today = day(Date.now());
+  for (let d = days.has(today) ? today : today - 1; days.has(d); d--) streak++;
+  const week = Array.from({ length: 7 }, (_, i) => { const d = today - 6 + i; return { day: d, count: [...rows, ...local].filter((r) => day(Number(r.at)) === d).length }; });
+  return { chapters, titles, streak, activeDays: days.size, week };
+}

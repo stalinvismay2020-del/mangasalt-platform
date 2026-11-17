@@ -5,6 +5,39 @@ import { Button } from "@/components/ui/button";
 import { PageHead, Avatar, EmptyBox, ThemeSwitch } from "@/components/shared";
 import { useApp, compact } from "@/lib/app-context";
 import type { LibraryData } from "@shared/schema";
+import type { ReadingStats } from "@shared/world";
+import { motion } from "framer-motion";
+import { Flame as FlameIcon } from "lucide-react";
+
+function ReadingStatsCard() {
+  const { user } = useApp();
+  const { data } = useQuery<ReadingStats>({ queryKey: ["/api/me/stats", { u: String(user?.id ?? "") }], enabled: !!user, refetchOnMount: "always", staleTime: 0 });
+  const max = Math.max(1, ...(data?.week ?? []).map((d) => d.count));
+  const days = ["S", "M", "T", "W", "T", "F", "S"];
+  return (
+    <section className="rounded-3xl border border-border bg-card p-5" data-testid="card-reading-stats">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="font-semibold">Reading stats</h2>
+          <p className="text-xs text-muted-foreground">{data ? `${data.chapters} chapter${data.chapters === 1 ? "" : "s"} across ${data.titles} title${data.titles === 1 ? "" : "s"}` : "Loading…"}</p>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-primary" data-testid="text-streak">
+          <motion.span animate={{ scale: [1, 1.25, 1], rotate: [0, -8, 6, 0] }} transition={{ duration: 1.4, repeat: Infinity }}><FlameIcon className="h-4 w-4 fill-primary/40" /></motion.span>
+          <span className="font-display text-lg font-semibold tabular-nums">{data?.streak ?? 0}</span><span className="text-xs">day streak</span>
+        </div>
+      </div>
+      <div className="mt-5 flex h-24 items-end gap-2">
+        {(data?.week ?? Array.from({ length: 7 }, (_, i) => ({ day: i, count: 0 }))).map((d, i) => (
+          <div key={d.day} className="flex flex-1 flex-col items-center gap-1.5">
+            <motion.div className={`w-full rounded-lg ${i === 6 ? "bg-primary" : "bg-primary/35"}`} initial={{ height: 4 }} animate={{ height: Math.max(4, (d.count / max) * 72) }} transition={{ type: "spring", stiffness: 160, damping: 18, delay: i * 0.05 }} />
+            <span className="text-[10px] text-muted-foreground">{days[new Date(d.day * 864e5).getUTCDay()]}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">{data?.streak ? "Read a chapter today to keep your streak alive." : "Read a chapter today to start a streak."}</p>
+    </section>
+  );
+}
 
 export default function Profile() {
   const { user, openAuth, signOut, theme, toggleTheme } = useApp();
@@ -41,6 +74,7 @@ export default function Profile() {
           ))}
         </div>
       </div>
+      <ReadingStatsCard />
       <section>
         <h2 className="mb-3 font-semibold">Creators you follow</h2>
         {!lib.data?.followedCreators.length ? <EmptyBox>You’re not following any creators yet. Follow them from the Home page.</EmptyBox> : (
