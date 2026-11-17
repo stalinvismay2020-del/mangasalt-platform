@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS reading_list_items (id INTEGER PRIMARY KEY AUTOINCREM
 CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, series_id INTEGER NOT NULL, chapter_id INTEGER, viewed_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, comment_id INTEGER NOT NULL, user_id INTEGER NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL);
 `);
+for (const [col, def] of [["rating", "INTEGER NOT NULL DEFAULT 80"], ["year", "INTEGER NOT NULL DEFAULT 2025"]]) {
+  const cols = (sqlite.prepare(`PRAGMA table_info(series)`).all() as any[]).map((c) => c.name);
+  if (!cols.includes(col)) sqlite.exec(`ALTER TABLE series ADD COLUMN ${col} ${def}`);
+}
 
 // ---------- helpers ----------
 export function hashPassword(pw: string) {
@@ -46,14 +50,16 @@ SELECT s.*, u.id AS u_id, u.username AS u_username, u.display_name AS u_display_
   (SELECT COALESCE(MAX(number),0) FROM chapters c WHERE c.series_id = s.id) AS latest_chapter,
   (SELECT COALESCE(MAX(created_at),0) FROM chapters c WHERE c.series_id = s.id) AS latest_chapter_at,
   (SELECT COUNT(*) FROM comments cm WHERE cm.series_id = s.id AND cm.created_at > @since) AS recent_comments,
-  EXISTS(SELECT 1 FROM series_likes l WHERE l.series_id = s.id AND l.user_id = @me) AS liked_by_me
+  EXISTS(SELECT 1 FROM series_likes l WHERE l.series_id = s.id AND l.user_id = @me) AS liked_by_me,
+  EXISTS(SELECT 1 FROM reading_list_items ri JOIN reading_lists rl ON rl.id = ri.list_id WHERE ri.series_id = s.id AND rl.user_id = @me AND rl.name = 'Saved') AS saved_by_me,
+  EXISTS(SELECT 1 FROM follows f WHERE f.target_type='series' AND f.target_id = s.id AND f.user_id = @me) AS followed_by_me
 FROM series s JOIN users u ON u.id = s.creator_id`;
 
 function toCard(r: any): SeriesCard {
   return {
     id: r.id, slug: r.slug, title: r.title, type: r.type, genres: JSON.parse(r.genres), synopsis: r.synopsis, cover: r.cover,
     status: r.status, views: r.views, rights: r.rights, likes: r.likes, recentLikes: r.recent_likes, chapterCount: r.chapter_count,
-    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me,
+    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year,
     creator: { id: r.u_id, username: r.u_username, displayName: r.u_display_name, bio: r.u_bio, avatarHue: r.u_avatar_hue, isCreator: r.u_is_creator },
   };
 }
@@ -87,7 +93,7 @@ export class Storage {
   deleteSession(token: string) { sqlite.prepare(`DELETE FROM sessions WHERE token = ?`).run(token); }
 
   // ---------- series ----------
-  listSeries(opts: { me?: number; type?: string; q?: string; order?: "trending" | "likes" | "latest" | "views"; limit?: number }): SeriesCard[] {
+  listSeries(opts: { me?: number; type?: string; q?: string; genre?: string; status?: string; order?: "trending" | "likes" | "latest" | "views" | "week" | "az" | "rating" | "match"; limit?: number }): SeriesCard[] {
     const where: string[] = [];
     const params: any = { since: Date.now() - WEEK, me: opts.me ?? -1, limit: opts.limit ?? 24 };
     if (opts.type) { where.push(`s.type = @type`); params.type = opts.type; }
@@ -95,7 +101,13 @@ export class Storage {
       where.push(`(s.title LIKE @q OR s.genres LIKE @q OR u.display_name LIKE @q OR s.synopsis LIKE @q)`);
       params.q = `%${opts.q}%`;
     }
+    if (opts.genre) { where.push(`s.genres LIKE @genre`); params.genre = `%"${opts.genre}"%`; }
+    if (opts.status) { where.push(`s.status = @status`); params.status = opts.status; }
     const order = {
+      week: `recent_likes DESC, likes DESC`,
+      az: `s.title COLLATE NOCASE ASC`,
+      rating: `s.rating DESC`,
+      match: opts.q ? `(CASE WHEN s.title LIKE @q THEN 0 ELSE 1 END), likes DESC` : `likes DESC`,
       trending: `(recent_likes * 5 + recent_comments * 3 + s.views / 200.0) DESC`,
       likes: `likes DESC, s.views DESC`,
       latest: `latest_chapter_at DESC`,
@@ -186,6 +198,38 @@ export class Storage {
       stats: this.stats(),
       recent: me ? this.recentlyViewed(me) : [],
     };
+  }
+
+  // ---------- saved list ----------
+  savedListId(userId: number) {
+    const r: any = sqlite.prepare(`SELECT id FROM reading_lists WHERE user_id = ? AND name = 'Saved'`).get(userId);
+    if (r) return r.id as number;
+    return Number(sqlite.prepare(`INSERT INTO reading_lists (user_id, name) VALUES (?, 'Saved')`).run(userId).lastInsertRowid);
+  }
+  toggleSaved(userId: number, seriesId: number) {
+    const lid = this.savedListId(userId);
+    const ex = sqlite.prepare(`SELECT id FROM reading_list_items WHERE list_id = ? AND series_id = ?`).get(lid, seriesId);
+    if (ex) sqlite.prepare(`DELETE FROM reading_list_items WHERE list_id = ? AND series_id = ?`).run(lid, seriesId);
+    else sqlite.prepare(`INSERT INTO reading_list_items (list_id, series_id) VALUES (?,?)`).run(lid, seriesId);
+    return { saved: !ex };
+  }
+  cardsByIds(ids: number[], me: number) {
+    if (!ids.length) return [];
+    const rows = sqlite.prepare(`${SERIES_SELECT} WHERE s.id IN (${ids.map(Number).join(",")})`).all({ since: Date.now() - WEEK, me }).map(toCard);
+    return ids.map((id) => rows.find((r) => r.id === id)!).filter(Boolean);
+  }
+  library(userId: number) {
+    const lid = this.savedListId(userId);
+    const saved = sqlite.prepare(`SELECT series_id FROM reading_list_items WHERE list_id = ? ORDER BY id DESC`).all(lid).map((r: any) => r.series_id);
+    const followedCreators = sqlite.prepare(`SELECT u.* FROM follows f JOIN users u ON u.id = f.target_id WHERE f.user_id = ? AND f.target_type = 'creator'`).all(userId).map(pub);
+    const following = sqlite.prepare(`SELECT target_id FROM follows WHERE user_id = ? AND target_type = 'series'`).all(userId).map((r: any) => r.target_id);
+    const counts: any = sqlite.prepare(`SELECT (SELECT COUNT(*) FROM series_likes WHERE user_id = @u) AS likes, (SELECT COUNT(*) FROM comments WHERE user_id = @u) AS comments, (SELECT COUNT(DISTINCT series_id) FROM history WHERE user_id = @u) AS read`).get({ u: userId });
+    return { continueReading: this.recentlyViewed(userId, 10), saved: this.cardsByIds(saved, userId), following: this.cardsByIds(following, userId), followedCreators, counts };
+  }
+  genres() {
+    const set = new Set<string>();
+    for (const r of sqlite.prepare(`SELECT genres FROM series`).all() as any[]) JSON.parse(r.genres).forEach((g: string) => set.add(g));
+    return Array.from(set).sort();
   }
 
   isEmpty() { return (sqlite.prepare(`SELECT COUNT(*) AS n FROM series`).get() as any).n === 0; }

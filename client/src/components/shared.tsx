@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Heart, Search, Moon, Sun, X, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck } from "lucide-react";
+import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star } from "lucide-react";
+import { Link, useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +43,7 @@ export function useSeriesLike() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/home"] });
       queryClient.invalidateQueries({ queryKey: ["/api/series"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/library"] });
     },
     onError: (e: Error) => toast({ title: "Couldn't update like", description: e.message }),
   });
@@ -127,7 +128,7 @@ export function FollowButton({ type, id, following, size = "sm" }: { type: "seri
   useEffect(() => setState(following), [following]);
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/follow/${type}/${id}`)).json(),
-    onSuccess: (d: any) => { setState(d.following); queryClient.invalidateQueries({ queryKey: ["/api/home"] }); },
+    onSuccess: (d: any) => { setState(d.following); ["/api/home", "/api/series", "/api/me/library"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })); },
   });
   return (
     <Button size={size} variant={state ? "secondary" : "outline"} className="gap-1.5 rounded-full" data-testid={`button-follow-${type}-${id}`}
@@ -139,12 +140,13 @@ export function FollowButton({ type, id, following, size = "sm" }: { type: "seri
 }
 
 // ---------- Quick view ----------
-export function QuickView({ s, onClose }: { s: SeriesCard | null; onClose: () => void }) {
-  const { user } = useApp();
+export function QuickView() {
+  const { user, openSeries: s, setOpenSeries } = useApp();
+  const onClose = () => setOpenSeries(null);
   const live = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: s?.title ?? "" }], enabled: !!s });
   const current = live.data?.find((x) => x.id === s?.id) ?? s;
   useEffect(() => {
-    if (s && user) apiRequest("POST", `/api/series/${s.id}/view`).then(() => queryClient.invalidateQueries({ queryKey: ["/api/home"] }));
+    if (s && user) apiRequest("POST", `/api/series/${s.id}/view`).then(() => { queryClient.invalidateQueries({ queryKey: ["/api/home"] }); queryClient.invalidateQueries({ queryKey: ["/api/me/library"] }); });
   }, [s?.id]);
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
@@ -157,18 +159,20 @@ export function QuickView({ s, onClose }: { s: SeriesCard | null; onClose: () =>
             </div>
             <div className="flex flex-col gap-4 p-6">
               <div className="flex flex-wrap items-center gap-2"><TypeBadge type={current.type} />
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Original work · Creator-published</span>
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Original · Official EN</span>
               </div>
               <div>
                 <DialogTitle className="font-display text-2xl font-semibold leading-tight">{current.title}</DialogTitle>
-                <p className="mt-1 text-sm text-muted-foreground">by <span className="text-foreground">{current.creator.displayName}</span> · {current.chapterCount} chapters · {current.status}</p>
+                <p className="mt-1 text-sm text-muted-foreground">by <span className="text-foreground">{current.creator.displayName}</span> · {current.chapterCount} chapters · <span className="capitalize">{current.status}</span></p>
+                <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{current.rating.toFixed(1)} · {current.year}</p>
               </div>
               <DialogDescription className="text-[15px] leading-relaxed text-foreground/80">{current.synopsis}</DialogDescription>
               <div className="flex flex-wrap gap-1.5">{current.genres.map((g) => <span key={g} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">{g}</span>)}</div>
               <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
                 <Button className="gap-2 rounded-full" data-testid="button-read-first" onClick={() => toastSoon()}><BookOpen className="h-4 w-4" /> Read Chapter 1</Button>
                 <LikeButton s={current} />
-                <FollowButton type="series" id={current.id} following={false} size="default" />
+                <SaveButton s={current} />
+                <FollowButton type="series" id={current.id} following={current.followedByMe} size="default" />
               </div>
             </div>
           </div>
@@ -222,116 +226,129 @@ export function AuthDialog() {
   );
 }
 
-// ---------- Search overlay ----------
-export function SearchOverlay({ onOpen }: { onOpen: (s: SeriesCard) => void }) {
-  const { searchOpen, setSearchOpen } = useApp();
-  const [q, setQ] = useState("");
-  const [debounced, setDebounced] = useState("");
-  const [type, setType] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { const t = setTimeout(() => setDebounced(q.trim()), 220); return () => clearTimeout(t); }, [q]);
-  useEffect(() => { if (searchOpen) setTimeout(() => inputRef.current?.focus(), 50); }, [searchOpen]);
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => {
-      if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !(e.target as HTMLElement).closest("input,textarea"))) { e.preventDefault(); setSearchOpen(true); }
-      if (e.key === "Escape") setSearchOpen(false);
-    };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, []);
-  const { data, isFetching } = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: debounced, type, order: "likes" }], enabled: searchOpen });
+// ---------- Save ----------
+export function SaveButton({ s, compact: small = false }: { s: SeriesCard; compact?: boolean }) {
+  const { user, openAuth } = useApp();
+  const [saved, setSaved] = useState(s.savedByMe);
+  useEffect(() => setSaved(s.savedByMe), [s.savedByMe]);
+  const m = useMutation({
+    mutationFn: async () => (await apiRequest("POST", `/api/series/${s.id}/save`)).json(),
+    onSuccess: (d: any) => { setSaved(d.saved); ["/api/me/library", "/api/series", "/api/home"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })); },
+  });
+  const onClick = (e: React.MouseEvent) => { e.stopPropagation(); user ? m.mutate() : openAuth("login"); };
+  if (small) return (
+    <button onClick={onClick} aria-label={saved ? "Remove from saved" : "Save"} data-testid={`button-save-${s.id}`}
+      className="grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur transition hover:bg-black/75">
+      <Bookmark className={`h-4 w-4 ${saved ? "fill-primary text-primary" : ""}`} />
+    </button>
+  );
   return (
-    <AnimatePresence>
-      {searchOpen && (
-        <motion.div className="fixed inset-0 z-50 flex items-start justify-center bg-black/70 px-4 pt-[10vh] backdrop-blur-md"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSearchOpen(false)}>
-          <motion.div className="w-full max-w-2xl overflow-hidden rounded-2xl border border-white/10 bg-popover shadow-2xl"
-            initial={{ y: -20, scale: 0.97, opacity: 0 }} animate={{ y: 0, scale: 1, opacity: 1 }} exit={{ y: -10, scale: 0.98, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 380, damping: 32 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Search">
-            <div className="flex items-center gap-3 border-b border-border px-4">
-              <Search className="h-5 w-5 text-muted-foreground" />
-              <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search titles, genres, creators…"
-                className="h-14 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" data-testid="input-search" />
-              {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-              <button onClick={() => setSearchOpen(false)} className="rounded-md p-1 text-muted-foreground hover:text-foreground" aria-label="Close search" data-testid="button-close-search"><X className="h-5 w-5" /></button>
-            </div>
-            <div className="flex gap-1.5 border-b border-border px-4 py-2.5">
-              {[["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]].map(([v, l]) => (
-                <button key={v} onClick={() => setType(v)} data-testid={`button-search-type-${v || "all"}`}
-                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${type === v ? "bg-foreground text-background" : "text-muted-foreground hover:bg-accent"}`}>{l}</button>
-              ))}
-            </div>
-            <ul className="max-h-[55vh] overflow-y-auto p-2">
-              {data?.length === 0 && <li className="px-4 py-10 text-center text-sm text-muted-foreground">No series match “{debounced}”. Try a genre like “Romance”.</li>}
-              {data?.map((s) => (
-                <li key={s.id}>
-                  <button className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition hover:bg-accent" data-testid={`result-search-${s.id}`}
-                    onClick={() => { setSearchOpen(false); onOpen(s); }}>
-                    <img src={asset(s.cover)} alt="" className="h-16 w-11 rounded object-cover" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2"><span className="truncate font-semibold">{s.title}</span><TypeBadge type={s.type} /></div>
-                      <p className="truncate text-xs text-muted-foreground">{s.genres.join(" · ")} — {s.creator.displayName}</p>
-                    </div>
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="h-3.5 w-3.5 fill-primary text-primary" />{compact(s.likes)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <Button variant={saved ? "secondary" : "outline"} className="gap-2 rounded-full" onClick={onClick} data-testid={`button-save-${s.id}`}>
+      <Bookmark className={`h-4 w-4 ${saved ? "fill-primary text-primary" : ""}`} />{saved ? "Saved" : "Save"}
+    </Button>
   );
 }
 
-// ---------- Header ----------
-export function Header({ onNav }: { onNav: (id: string) => void }) {
-  const { user, theme, toggleTheme, openAuth, signOut, setSearchOpen } = useApp();
+// ---------- Shell: top bar + bottom tab bar ----------
+export const TABS = [
+  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/trending", label: "Trending", icon: Flame },
+  { href: "/library", label: "Library", icon: LibraryIcon },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/profile", label: "Profile", icon: UserIcon },
+];
+
+export function TopBar() {
+  const { user, theme, toggleTheme } = useApp();
+  const [loc] = useLocation();
   const [scrolled, setScrolled] = useState(false);
-  useEffect(() => { const h = () => setScrolled(window.scrollY > 24); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
-  const links = [["trending", "Trending"], ["charts", "Top Liked"], ["latest", "Latest"], ["library", "Creator Library"], ["community", "Community"]];
+  useEffect(() => { const h = () => setScrolled(window.scrollY > 12); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   return (
-    <header className={`fixed inset-x-0 top-0 z-40 transition-all duration-300 ${scrolled ? "border-b border-border/60 bg-background/80 backdrop-blur-xl" : "bg-gradient-to-b from-black/60 to-transparent"}`}>
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4 sm:px-6">
-        <button onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="font-display text-xl font-bold tracking-tight" data-testid="link-home" aria-label="MANGASALT home">
-          <span className={scrolled ? "text-foreground" : "text-white"}>MANGA</span><span className="text-primary">SALT</span>
-        </button>
-        <nav className="hidden items-center gap-1 lg:flex" aria-label="Main">
-          {links.map(([id, l]) => (
-            <button key={id} onClick={() => onNav(id)} data-testid={`link-nav-${id}`}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${scrolled ? "text-muted-foreground hover:text-foreground" : "text-white/75 hover:text-white"}`}>{l}</button>
+    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-border/60 bg-background/85 backdrop-blur-xl" : "bg-background/0"}`}>
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:h-16 sm:px-6">
+        <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">
+          MANGA<span className="text-primary">SALT</span>
+        </Link>
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+          {TABS.slice(0, 4).map((t) => (
+            <Link key={t.href} href={t.href} data-testid={`link-top-${t.label.toLowerCase()}`}
+              className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${loc === t.href ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {loc === t.href && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-accent" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
+              <span className="relative">{t.label}</span>
+            </Link>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
-          <button onClick={() => setSearchOpen(true)} data-testid="button-open-search"
-            className={`flex h-9 items-center gap-2 rounded-full border px-3 text-sm transition ${scrolled ? "border-border text-muted-foreground hover:text-foreground" : "border-white/20 bg-black/20 text-white/80 hover:text-white"}`}>
-            <Search className="h-4 w-4" /><span className="hidden sm:inline">Search</span><kbd className="hidden rounded bg-white/10 px-1.5 text-[11px] md:inline">/</kbd>
-          </button>
           <button onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} data-testid="button-theme"
-            className={`grid h-9 w-9 place-items-center rounded-full transition ${scrolled ? "text-muted-foreground hover:bg-accent hover:text-foreground" : "text-white/80 hover:bg-white/10"}`}>
+            className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground">
             <AnimatePresence mode="wait" initial={false}>
               <motion.span key={theme} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
                 {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </motion.span>
             </AnimatePresence>
           </button>
-          {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger className="rounded-full outline-none ring-primary focus-visible:ring-2" data-testid="button-profile-menu"><Avatar user={user} size={34} /></DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel><div className="font-semibold">{user.displayName}</div><div className="text-xs font-normal text-muted-foreground">@{user.username}</div></DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onNav("recent")} data-testid="menu-recent"><Eye className="mr-2 h-4 w-4" />Recently viewed</DropdownMenuItem>
-                <DropdownMenuItem disabled><UserIcon className="mr-2 h-4 w-4" />Profile (next build)</DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} data-testid="menu-signout"><LogOut className="mr-2 h-4 w-4" />Sign out</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Button size="sm" className="rounded-full px-4" onClick={() => openAuth("login")} data-testid="button-signin">Sign in</Button>
-          )}
+          <Link href="/profile" aria-label="Profile" data-testid="button-profile"
+            className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground">
+            {user ? <Avatar user={user} size={34} /> : <UserIcon className="h-4 w-4" />}
+          </Link>
         </div>
       </div>
     </header>
+  );
+}
+
+export function BottomNav() {
+  const [loc] = useLocation();
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
+      <div className="mx-auto flex max-w-md items-center justify-between rounded-2xl border border-border bg-card/90 px-2 py-1.5 shadow-2xl backdrop-blur-xl">
+        {TABS.map((t) => {
+          const active = loc === t.href;
+          const Icon = t.icon;
+          return (
+            <Link key={t.href} href={t.href} data-testid={`tab-${t.label.toLowerCase()}`} aria-current={active ? "page" : undefined}
+              className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition ${active ? "text-primary" : "text-muted-foreground"}`}>
+              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15 shadow-[0_0_24px_hsl(var(--primary)/0.35)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <Icon className="relative h-5 w-5" />
+              <span className="relative">{t.label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+export function PageHead({ icon: Icon, kicker, title, sub }: { icon?: any; kicker?: string; title: string; sub?: string }) {
+  return (
+    <div className="mb-5">
+      {kicker && <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
+      <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+      {sub && <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+export function EmptyBox({ children }: { children: ReactNode }) {
+  return <div className="rounded-2xl border border-border bg-card/60 px-5 py-6 text-sm text-muted-foreground">{children}</div>;
+}
+
+export function RankRow({ s, rank }: { s: SeriesCard; rank: number }) {
+  const { setOpenSeries } = useApp();
+  return (
+    <motion.li layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30, delay: Math.min(rank, 10) * 0.03 }}
+      className="group flex min-w-0 cursor-pointer items-center gap-3 border-b border-border/70 py-3 sm:gap-4" onClick={() => setOpenSeries(s)} data-testid={`row-rank-${s.id}`}>
+      <span className={`rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums sm:w-10 sm:text-4xl ${rank <= 3 ? "top" : ""}`}>{rank}</span>
+      <img src={asset(s.cover)} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover ring-1 ring-white/5 transition group-hover:scale-105" loading="lazy" />
+      <div className="min-w-0 flex-1">
+        <h3 className="truncate font-semibold group-hover:text-primary">{s.title}</h3>
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <TypeBadge type={s.type} />
+          <span className="flex items-center gap-0.5"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>
+        </div>
+        <p className="mt-1 flex items-center gap-1 text-xs text-emerald-500"><ShieldCheck className="h-3.5 w-3.5" />Official EN · Original</p>
+      </div>
+      <div onClick={(e) => e.stopPropagation()}><LikeButton s={s} /></div>
+    </motion.li>
   );
 }

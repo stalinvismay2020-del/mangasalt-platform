@@ -4,6 +4,18 @@ import { storage, hashPassword } from "./storage";
 // No third-party copyrighted manga is included. Creators upload their own work.
 const DAY = 24 * 3600 * 1000;
 
+const META: Record<string, [number, number, string]> = {
+  "saltblade-ronin": [88, 2024, "ongoing"], "tidewitch-ledger": [86, 2024, "ongoing"], "neon-koi-requiem": [84, 2025, "ongoing"],
+  "jade-ascension": [87, 2023, "ongoing"], "level-zero-hunter": [91, 2024, "ongoing"], "paper-lantern-cafe": [89, 2025, "completed"],
+  "crimson-peony-court": [85, 2023, "hiatus"], "abyssal-gate-academy": [83, 2025, "ongoing"],
+};
+// Backfill new columns for databases created before rating/year existed (only touches default values).
+export function backfillMeta() {
+  const db = storage.raw();
+  for (const [slug, [rt, yr, st]] of Object.entries(META))
+    db.prepare(`UPDATE series SET rating = ?, year = ?, status = CASE WHEN status = 'ongoing' THEN ? ELSE status END WHERE slug = ? AND rating = 80 AND year = 2025`).run(rt, yr, st, slug);
+}
+
 export function seedIfEmpty() {
   if (!storage.isEmpty()) return;
   const db = storage.raw();
@@ -42,11 +54,18 @@ export function seedIfEmpty() {
   catalog.forEach(([slug, title, type, genres, syn, creator, status, views, chCount], idx) => {
     const id = Number(insSeries.run(slug, title, type, JSON.stringify(genres), syn, `/covers/${slug}.webp`, cid[creator], status, views, "original", now - (180 - idx * 10) * DAY).lastInsertRowid);
     sid.push(id);
+    const [rt, yr, st] = META[slug];
+    db.prepare(`UPDATE series SET rating = ?, year = ?, status = ? WHERE id = ?`).run(rt, yr, st, id);
     for (let n = 1; n <= chCount; n++) {
       const ago = (chCount - n) * 6 + (idx * 0.7);
       insCh.run(id, n, `Chapter ${n}`, "[]", now - ago * DAY - idx * 3600 * 1000);
     }
   });
+
+  // demo reader saved list + history
+  const lid = Number(db.prepare(`INSERT INTO reading_lists (user_id, name) VALUES (?, 'Saved')`).run(readers[0]).lastInsertRowid);
+  [sid[1], sid[5]].forEach((s) => db.prepare(`INSERT INTO reading_list_items (list_id, series_id) VALUES (?,?)`).run(lid, s));
+  [[sid[4], 2], [sid[0], 5]].forEach(([s, h]) => db.prepare(`INSERT INTO history (user_id, series_id, viewed_at) VALUES (?,?,?)`).run(readers[0], s, now - h * 3600 * 1000));
 
   // likes: deterministic but uneven distribution
   const insLike = db.prepare(`INSERT OR IGNORE INTO series_likes (user_id, series_id, created_at) VALUES (?,?,?)`);

@@ -154,6 +154,10 @@ export type SeriesCard = {
   latestChapterAt: number;
   creator: PublicUser;
   likedByMe: boolean;
+  savedByMe: boolean;
+  followedByMe: boolean;
+  rating: number;
+  year: number;
 };
 
 export type CreatorCard = PublicUser & { seriesCount: number; followers: number; totalLikes: number; followedByMe: boolean };
@@ -178,4 +182,12 @@ export type HomeData = {
   discussions: DiscussionItem[];
   stats: { series: number; chapters: number; creators: number; readers: number };
   recent: SeriesCard[];
+};
+
+export type LibraryData = {
+  continueReading: SeriesCard[];
+  saved: SeriesCard[];
+  following: SeriesCard[];
+  followedCreators: PublicUser[];
+  counts: { likes: number; comments: number; read: number };
 };

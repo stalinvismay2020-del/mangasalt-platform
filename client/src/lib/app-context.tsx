@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { apiRequest, queryClient, setAuthToken } from "./queryClient";
-import type { PublicUser } from "@shared/schema";
+import type { PublicUser, SeriesCard } from "@shared/schema";
 
 type Theme = "dark" | "light";
 type Ctx = {
@@ -12,8 +12,8 @@ type Ctx = {
   closeAuth: () => void;
   signIn: (token: string, user: PublicUser) => void;
   signOut: () => void;
-  searchOpen: boolean;
-  setSearchOpen: (v: boolean) => void;
+  openSeries: SeriesCard | null;
+  setOpenSeries: (s: SeriesCard | null) => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -22,7 +22,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
   const [authOpen, setAuthOpen] = useState<Ctx["authOpen"]>(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const [openSeries, setOpenSeries] = useState<SeriesCard | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -31,6 +31,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshPersonal = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/home"] });
     queryClient.invalidateQueries({ queryKey: ["/api/series"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/me/library"] });
   };
 
   const value: Ctx = {
@@ -52,8 +53,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUser(null);
       refreshPersonal();
     },
-    searchOpen,
-    setSearchOpen,
+    openSeries,
+    setOpenSeries,
   };
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

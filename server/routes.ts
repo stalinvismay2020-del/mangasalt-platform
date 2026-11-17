@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
 import { storage, verifyPassword } from "./storage";
-import { seedIfEmpty } from "./seed";
+import { seedIfEmpty, backfillMeta } from "./seed";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
 function token(req: Request) {
@@ -18,6 +18,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   seedIfEmpty();
+  backfillMeta();
 
   // ---------- auth ----------
   app.post("/api/auth/signup", (req, res) => {
@@ -45,8 +46,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/series", (req, res) => {
     const type = typeof req.query.type === "string" && (SERIES_TYPES as readonly string[]).includes(req.query.type) ? req.query.type : undefined;
     const q = typeof req.query.q === "string" ? req.query.q.trim().slice(0, 80) : undefined;
-    const order = (["trending", "likes", "latest", "views"] as const).find((o) => o === req.query.order) ?? "trending";
-    res.json(storage.listSeries({ me: me(req)?.id, type, q: q || undefined, order, limit: 40 }));
+    const order = (["trending", "likes", "latest", "views", "week", "az", "rating", "match"] as const).find((o) => o === req.query.order) ?? "trending";
+    const genre = typeof req.query.genre === "string" ? req.query.genre.slice(0, 40) : undefined;
+    const status = typeof req.query.status === "string" && ["ongoing", "completed", "hiatus"].includes(req.query.status) ? req.query.status : undefined;
+    res.json(storage.listSeries({ me: me(req)?.id, type, q: q || undefined, genre: genre || undefined, status, order, limit: 40 }));
+  });
+  app.get("/api/genres", (_req, res) => res.json(storage.genres()));
+  app.get("/api/me/library", requireAuth, (req, res) => res.json(storage.library((req as any).user.id)));
+  app.post("/api/series/:id/save", requireAuth, (req, res) => {
+    const id = Number(req.params.id);
+    if (!storage.seriesExists(id)) return res.status(404).json({ message: "Series not found" });
+    res.json(storage.toggleSaved((req as any).user.id, id));
   });
 
   app.post("/api/series/:id/like", requireAuth, (req, res) => {

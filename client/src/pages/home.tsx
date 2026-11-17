@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence, useScroll, useTransform } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { BookOpen, Flame, Heart, Trophy, Clock, Users, MessageCircle, EyeOff, ChevronLeft, ChevronRight, Sparkles, PenTool, ShieldCheck, Upload, TrendingUp } from "lucide-react";
+import { BookOpen, Flame, Heart, Trophy, Clock, Users, MessageCircle, Star, EyeOff, ChevronLeft, ChevronRight, Sparkles, PenTool, ShieldCheck, Upload, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useApp, TYPE_LABEL, TYPE_ORIGIN, compact, timeAgo } from "@/lib/app-context";
-import { Header, SeriesPoster, PosterSkeleton, LikeButton, TypeBadge, Avatar, FollowButton, QuickView, SearchOverlay, AuthDialog, ToastBridge, asset } from "@/components/shared";
+import { SeriesPoster, PosterSkeleton, LikeButton, SaveButton, TypeBadge, Avatar, FollowButton, RankRow, EmptyBox, asset } from "@/components/shared";
+import { Link } from "wouter";
 import type { HomeData, SeriesCard, DiscussionItem } from "@shared/schema";
 
-const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
 function SectionHead({ icon: Icon, kicker, title, action }: { icon: any; kicker: string; title: string; action?: React.ReactNode }) {
   return (
@@ -22,83 +22,81 @@ function SectionHead({ icon: Icon, kicker, title, action }: { icon: any; kicker:
   );
 }
 
-// ---------------- Hero ----------------
+// ---------------- Hero (centered #1 cover) ----------------
+const GLOW: Record<string, string> = {
+  "level-zero-hunter": "265 70% 45%", "jade-ascension": "150 55% 38%", "saltblade-ronin": "354 70% 45%", "tidewitch-ledger": "185 60% 40%",
+  "crimson-peony-court": "0 75% 42%", "abyssal-gate-academy": "275 60% 45%", "neon-koi-requiem": "320 70% 50%", "paper-lantern-cafe": "35 85% 50%",
+};
 function Hero({ items, onOpen }: { items: SeriesCard[]; onOpen: (s: SeriesCard) => void }) {
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
-  const { scrollY } = useScroll();
-  const y = useTransform(scrollY, [0, 600], [0, 120]);
-  const fade = useTransform(scrollY, [0, 500], [1, 0.3]);
   useEffect(() => {
     if (paused || items.length < 2) return;
     const t = setInterval(() => setI((v) => (v + 1) % items.length), 6500);
     return () => clearInterval(t);
   }, [paused, items.length]);
   const s = items[i];
-  if (!s) return <div className="h-[88vh] min-h-[560px] bg-muted" />;
+  if (!s) return <div className="mx-auto mt-6 h-[520px] max-w-6xl rounded-3xl bg-muted shimmer relative overflow-hidden" />;
+  const glow = GLOW[s.slug] ?? "354 70% 45%";
   return (
-    <section className="relative isolate h-[88vh] min-h-[600px] overflow-hidden bg-black text-white" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} aria-roledescription="carousel">
-      <AnimatePresence mode="sync">
-        <motion.div key={s.id} className="absolute inset-0 -z-10" style={{ y }} initial={{ opacity: 0, scale: 1.12 }} animate={{ opacity: 1, scale: 1.02 }} exit={{ opacity: 0 }} transition={{ opacity: { duration: 1 }, scale: { duration: 7, ease: "linear" } }}>
-          <img src={asset(s.cover)} alt="" className="h-full w-full object-cover object-[center_25%] blur-[2px] brightness-[.55]" />
-        </motion.div>
-      </AnimatePresence>
-      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-black via-black/70 to-black/10" />
-      <div className="absolute inset-x-0 bottom-0 -z-10 h-1/2 bg-gradient-to-t from-background to-transparent" />
+    <section className="relative isolate overflow-hidden" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} aria-roledescription="carousel">
+      <motion.div key={`g-${s.id}`} className="absolute inset-0 -z-10" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1 }}
+        style={{ background: `radial-gradient(60% 55% at 50% 32%, hsl(${glow} / 0.55), transparent 70%)` }} />
       <div className="grain absolute inset-0 -z-10" />
-
-      <motion.div style={{ opacity: fade }} className="mx-auto flex h-full max-w-7xl items-center gap-10 px-4 pb-16 pt-24 sm:px-6">
-        <div className="max-w-xl flex-1">
-          <AnimatePresence mode="wait">
-            <motion.div key={s.id} initial="hide" animate="show" exit="exit" variants={{ show: { transition: { staggerChildren: 0.08 } } }}>
-              <motion.div variants={rise} className="mb-4 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1 rounded-full bg-primary/90 px-2.5 py-1 text-xs font-bold uppercase tracking-wider"><Trophy className="h-3.5 w-3.5" /> #{i + 1} Most liked</span>
-                <TypeBadge type={s.type} className="!bg-white/15 !text-white" />
-                <span className="text-xs text-white/70">{TYPE_ORIGIN[s.type]} · {s.genres.join(" · ")}</span>
-              </motion.div>
-              <motion.h1 variants={rise} className="font-display text-[clamp(2.5rem,1.4rem+4.5vw,5rem)] font-bold leading-[0.95] tracking-tight text-balance">{s.title}</motion.h1>
-              <motion.p variants={rise} className="mt-5 max-w-lg text-base leading-relaxed text-white/80 sm:text-lg">{s.synopsis}</motion.p>
-              <motion.div variants={rise} className="mt-5 flex items-center gap-4 text-sm text-white/70">
-                <span className="flex items-center gap-1.5"><Avatar user={s.creator} size={22} />{s.creator.displayName}</span>
-                <span className="flex items-center gap-1"><Heart className="h-4 w-4 fill-primary text-primary" />{compact(s.likes)}</span>
-                <span>{s.chapterCount} chapters</span>
-              </motion.div>
-              <motion.div variants={rise} className="mt-8 flex flex-wrap items-center gap-3">
-                <Button size="lg" className="gap-2 rounded-full px-6 text-base" onClick={() => onOpen(s)} data-testid="button-hero-read"><BookOpen className="h-5 w-5" /> Start reading</Button>
-                <div className="[&_button]:border-white/25 [&_button]:bg-white/5 [&_button]:text-white [&_button]:backdrop-blur"><LikeButton s={s} /></div>
-              </motion.div>
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Poster stack */}
-        <div className="relative hidden h-[460px] w-[340px] shrink-0 md:block">
+      <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-10 pt-6 sm:px-6 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:pb-16 md:pt-10">
+        {/* cover */}
+        <div className="relative mx-auto h-[300px] w-[210px] sm:h-[380px] sm:w-[260px] md:order-2 md:h-[460px] md:w-[310px]">
           {items.map((it, idx) => {
             const off = (idx - i + items.length) % items.length;
             if (off > 2) return null;
             return (
-              <motion.button key={it.id} onClick={() => (off === 0 ? onOpen(it) : setI(idx))} data-testid={`button-hero-poster-${it.id}`}
-                className="absolute right-0 top-0 h-[460px] w-[306px] overflow-hidden rounded-xl shadow-2xl ring-1 ring-white/15"
-                animate={{ x: -off * 34, y: off * 18, scale: 1 - off * 0.08, opacity: 1 - off * 0.3, rotate: off * -3, zIndex: 10 - off }}
-                transition={{ type: "spring", stiffness: 160, damping: 22 }} aria-label={`Show ${it.title}`}>
+              <motion.button key={it.id} onClick={() => (off === 0 ? onOpen(it) : setI(idx))} data-testid={`button-hero-poster-${it.id}`} aria-label={off === 0 ? `Open ${it.title}` : `Show ${it.title}`}
+                className="absolute inset-0 overflow-hidden rounded-xl ring-1 ring-white/15"
+                style={{ boxShadow: off === 0 ? `0 30px 80px -20px hsl(${glow} / .8)` : undefined }}
+                animate={{ x: off * 26, y: -off * 6, scale: 1 - off * 0.07, opacity: off === 0 ? 1 : 0.35, rotate: off * 4, zIndex: 10 - off, filter: off ? "blur(1px)" : "blur(0px)" }}
+                transition={{ type: "spring", stiffness: 170, damping: 22 }}>
                 <img src={asset(it.cover)} alt={`${it.title} cover`} className="h-full w-full object-cover" />
               </motion.button>
             );
           })}
         </div>
-      </motion.div>
-
-      <div className="absolute inset-x-0 bottom-10 mx-auto flex max-w-7xl items-center gap-3 px-4 sm:px-6">
-        <div className="flex flex-1 gap-2">
-          {items.map((it, idx) => (
-            <button key={it.id} onClick={() => setI(idx)} className="h-1 flex-1 overflow-hidden rounded-full bg-white/20 sm:max-w-24" aria-label={`Slide ${idx + 1}`} data-testid={`button-hero-dot-${idx}`}>
-              {idx === i && <motion.span key={`${i}-${paused}`} className="block h-full bg-white" initial={{ width: paused ? "100%" : 0 }} animate={{ width: "100%" }} transition={{ duration: paused ? 0 : 6.5, ease: "linear" }} />}
-              {idx < i && <span className="block h-full w-full bg-white/60" />}
-            </button>
-          ))}
+        {/* text */}
+        <div className="min-w-0 md:order-1">
+          <AnimatePresence mode="wait">
+            <motion.div key={s.id} initial="hide" animate="show" exit="exit" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
+              <motion.p variants={rise} className="rank-numeral top font-display text-6xl font-bold leading-none sm:text-7xl" style={{ color: "transparent", WebkitTextStroke: "2px hsl(var(--primary))" }}>#{i + 1}</motion.p>
+              <motion.p variants={rise} className="mt-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary"><TrendingUp className="h-3.5 w-3.5" />Top {i + 1} trending · Read on MANGASALT</motion.p>
+              <motion.div variants={rise} className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="rounded-md border border-primary/60 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">{TYPE_LABEL[s.type]}</span>
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-500"><ShieldCheck className="h-3.5 w-3.5" />Official EN</span>
+              </motion.div>
+              <motion.h1 variants={rise} className="mt-3 font-display text-[clamp(2.2rem,1.4rem+3.5vw,4.2rem)] font-bold leading-[0.98] tracking-tight text-balance">{s.title}</motion.h1>
+              <motion.p variants={rise} className="mt-2 text-sm text-muted-foreground">by {s.creator.displayName}</motion.p>
+              <motion.div variants={rise} className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1 text-foreground"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>
+                <span>{s.year}</span><span className="capitalize">{s.status === "ongoing" ? "Releasing" : s.status}</span>
+                <span>{s.genres.join(" · ")}</span>
+              </motion.div>
+              <motion.p variants={rise} className="mt-4 max-w-lg leading-relaxed text-foreground/80">{s.synopsis}</motion.p>
+              <motion.div variants={rise} className="mt-6 flex flex-wrap items-center gap-2.5">
+                <Button size="lg" className="gap-2 rounded-full px-6" onClick={() => onOpen(s)} data-testid="button-hero-read"><BookOpen className="h-5 w-5" />Read now</Button>
+                <SaveButton s={s} />
+                <LikeButton s={s} />
+              </motion.div>
+            </motion.div>
+          </AnimatePresence>
+          <div className="mt-8 flex items-center gap-2">
+            {items.map((it, idx) => (
+              <button key={it.id} onClick={() => setI(idx)} className="h-1 w-10 overflow-hidden rounded-full bg-foreground/15" aria-label={`Slide ${idx + 1}`} data-testid={`button-hero-dot-${idx}`}>
+                {idx === i && <motion.span key={`${i}-${paused}`} className="block h-full bg-primary" initial={{ width: paused ? "100%" : 0 }} animate={{ width: "100%" }} transition={{ duration: paused ? 0 : 6.5, ease: "linear" }} />}
+              </button>
+            ))}
+            <div className="ml-auto flex gap-2">
+              <button onClick={() => setI((i - 1 + items.length) % items.length)} className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-accent" aria-label="Previous" data-testid="button-hero-prev"><ChevronLeft className="h-4 w-4" /></button>
+              <button onClick={() => setI((i + 1) % items.length)} className="grid h-9 w-9 place-items-center rounded-full border border-border hover:bg-accent" aria-label="Next" data-testid="button-hero-next"><ChevronRight className="h-4 w-4" /></button>
+            </div>
+          </div>
         </div>
-        <button onClick={() => setI((i - 1 + items.length) % items.length)} className="grid h-9 w-9 place-items-center rounded-full border border-white/20 hover:bg-white/10" aria-label="Previous" data-testid="button-hero-prev"><ChevronLeft className="h-4 w-4" /></button>
-        <button onClick={() => setI((i + 1) % items.length)} className="grid h-9 w-9 place-items-center rounded-full border border-white/20 hover:bg-white/10" aria-label="Next" data-testid="button-hero-next"><ChevronRight className="h-4 w-4" /></button>
       </div>
     </section>
   );
@@ -133,31 +131,13 @@ function TrendingSection({ onOpen }: { onOpen: (s: SeriesCard) => void }) {
   );
 }
 
-// ---------------- Top liked leaderboard ----------------
-function Charts({ items, onOpen }: { items: SeriesCard[]; onOpen: (s: SeriesCard) => void }) {
-  const max = Math.max(1, ...items.map((s) => s.likes));
+// ---------------- Trending preview (top 3) ----------------
+function TrendingPreview({ items }: { items: SeriesCard[] }) {
   return (
-    <section id="charts" className="scroll-mt-24">
-      <SectionHead icon={Trophy} kicker="The salt charts" title="Top liked — more likes, higher rank" />
-      <ol className="grid grid-cols-1 gap-x-8 gap-y-1 md:grid-cols-2">
-        <AnimatePresence initial={false}>
-          {items.map((s, idx) => (
-            <motion.li key={s.id} layout transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="group flex min-w-0 cursor-pointer items-center gap-3 rounded-xl p-2 sm:gap-4 sm:p-2.5 transition hover:bg-card" onClick={() => onOpen(s)} data-testid={`row-chart-${s.id}`}>
-              <span className={`rank-numeral font-display w-8 shrink-0 text-center text-4xl sm:w-12 sm:text-5xl font-bold tabular-nums ${idx < 3 ? "top" : ""}`}>{idx + 1}</span>
-              <img src={asset(s.cover)} alt="" className="h-20 w-14 shrink-0 rounded-md object-cover ring-1 ring-white/5" loading="lazy" />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2"><h3 className="truncate font-semibold group-hover:text-primary">{s.title}</h3><TypeBadge type={s.type} className="max-sm:hidden" /></div>
-                <p className="truncate text-xs text-muted-foreground">{s.creator.displayName} · {s.genres[0]}</p>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <motion.div className="h-full rounded-full bg-gradient-to-r from-primary/70 to-primary" initial={{ width: 0 }} whileInView={{ width: `${(s.likes / max) * 100}%` }} viewport={{ once: true }} transition={{ duration: 1, delay: idx * 0.05, ease: [0.16, 1, 0.3, 1] }} />
-                </div>
-              </div>
-              <div onClick={(e) => e.stopPropagation()}><LikeButton s={s} /></div>
-            </motion.li>
-          ))}
-        </AnimatePresence>
-      </ol>
+    <section id="charts">
+      <SectionHead icon={Flame} kicker="Charts" title="Trending" action={<Link href="/trending" className="text-sm font-medium text-primary hover:underline" data-testid="link-see-trending">See all charts</Link>} />
+      <p className="-mt-3 mb-3 text-sm text-muted-foreground">Original titles you can read on MANGASALT. Ranked by reader likes, live.</p>
+      <ol className="grid grid-cols-1 gap-x-8 md:grid-cols-2">{items.slice(0, 6).map((s, k) => <RankRow key={s.id} s={s} rank={k + 1} />)}</ol>
     </section>
   );
 }
@@ -295,49 +275,36 @@ function Stats({ stats }: { stats: HomeData["stats"] }) {
 
 // ---------------- Page ----------------
 export default function Home() {
-  const { user, openAuth } = useApp();
-  const [open, setOpen] = useState<SeriesCard | null>(null);
+  const { user, openAuth, setOpenSeries: setOpen } = useApp();
   const { data, isLoading } = useQuery<HomeData>({ queryKey: ["/api/home", { u: String(user?.id ?? "") }] });
   useEffect(() => { document.title = "MANGASALT — Read Manga, Manhwa & Manhua in English"; }, []);
-
   return (
-    <div className="min-h-screen">
-      <ToastBridge />
-      <Header onNav={scrollTo} />
+    <>
       <Hero items={data?.featured ?? []} onOpen={setOpen} />
-      <main className="relative z-10 mx-auto -mt-6 max-w-7xl space-y-20 px-4 pb-24 sm:px-6">
-        {data && <Stats stats={data.stats} />}
+      <div className="mx-auto max-w-6xl space-y-16 px-4 pb-10 sm:px-6">
         {user && data && (
-          <Rail id="recent" icon={Clock} kicker={`Welcome back, ${user.displayName}`} title="Recently viewed" items={data.recent} onOpen={setOpen}
-            empty={<p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">Open any series and it will show up here.</p>} />
+          <Rail id="recent" icon={Clock} kicker={`Welcome back, ${user.displayName}`} title="Continue reading" items={data.recent} onOpen={setOpen}
+            empty={<EmptyBox>Nothing in progress. Open any official chapter and it will show up here.</EmptyBox>} />
         )}
+        {isLoading || !data ? <div className="relative h-96 overflow-hidden rounded-2xl bg-muted shimmer" /> : <TrendingPreview items={data.topLiked} />}
         <TrendingSection onOpen={setOpen} />
-        {isLoading || !data ? <div className="h-96 rounded-2xl bg-muted shimmer relative overflow-hidden" /> : (
+        {data && (
           <>
-            <Charts items={data.topLiked} onOpen={setOpen} />
             <LatestList items={data.latest} onOpen={setOpen} />
             <CreatorLibrary data={data} />
             <Community items={data.discussions} onOpenSeries={setOpen} series={[...data.topLiked, ...data.latest]} />
+            <Stats stats={data.stats} />
           </>
         )}
         {!user && (
           <section className="relative overflow-hidden rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground sm:px-12">
             <div className="grain absolute inset-0" />
             <h2 className="relative font-display text-3xl font-semibold tracking-tight sm:text-4xl">Your shelf is waiting.</h2>
-            <p className="relative mx-auto mt-3 max-w-md text-primary-foreground/85">Like series to push them up the charts, follow creators, and pick up where you left off.</p>
+            <p className="relative mx-auto mt-3 max-w-md text-primary-foreground/85">Like series to push them up the charts, save titles, follow creators, and pick up where you left off.</p>
             <Button size="lg" variant="secondary" className="relative mt-6 rounded-full px-8" onClick={() => openAuth("signup")} data-testid="button-cta-signup">Create free account</Button>
           </section>
         )}
-      </main>
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-10 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div><span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span><p className="mt-1">Manga · Manhwa · Manhua — in English.</p></div>
-          <p className="flex max-w-md items-start gap-2"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />Every series on MANGASALT is original or published by its rights holder. Report infringing content and we take it down.</p>
-        </div>
-      </footer>
-      <QuickView s={open} onClose={() => setOpen(null)} />
-      <SearchOverlay onOpen={setOpen} />
-      <AuthDialog />
-    </div>
+      </div>
+    </>
   );
 }
