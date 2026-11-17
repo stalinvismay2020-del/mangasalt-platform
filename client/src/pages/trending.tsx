@@ -31,28 +31,28 @@ function FloatingBackdrop({ items }: { items: WorldCard[] }) {
         { l: "-6%", t: "4%", w: 150, r: -14, d: 9 }, { l: "78%", t: "2%", w: 130, r: 12, d: 11 }, { l: "86%", t: "38%", w: 110, r: -8, d: 10 },
         { l: "-4%", t: "46%", w: 120, r: 10, d: 12 }, { l: "70%", t: "70%", w: 140, r: -12, d: 13 }, { l: "6%", t: "78%", w: 100, r: 8, d: 9.5 },
       ];
-  const amp = mobile ? { y: 48, x: 22, r: 12 } : { y: 26, x: 10, r: 6 };
-  const op = mobile ? 0.3 : 0.16;
-  const embers = useMemo(() => Array.from({ length: mobile ? 30 : 18 }, (_, i) => ({ x: (i * 53) % 100, s: (mobile ? 3 : 2) + (i % 4), d: (mobile ? 4.5 : 6) + (i % 5) * 1.2, delay: (i * 0.5) % 6 })), [mobile]);
+  const amp = mobile ? { y: 16, x: 6, r: 4 } : { y: 14, x: 6, r: 3 };
+  const op = mobile ? 0.16 : 0.12;
+  const embers = useMemo(() => Array.from({ length: mobile ? 10 : 10 }, (_, i) => ({ x: (i * 53) % 100, s: 2 + (i % 3), d: 9 + (i % 5) * 1.5, delay: (i * 0.5) % 6 })), [mobile]);
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      {items.slice(3, 3 + spots.length).map((m, i) => {
+      {items.slice(3, 3 + Math.min(6, spots.length)).map((m, i) => {
         const p = spots[i];
         return (
           <motion.img key={m.id} src={m.cover} alt="" className="absolute rounded-2xl object-cover saturate-150 shadow-2xl"
-            style={{ left: p.l, top: p.t, width: p.w, aspectRatio: "2/3", filter: mobile ? "blur(1px)" : "blur(2px)" }}
+            style={{ left: p.l, top: p.t, width: p.w, aspectRatio: "2/3", filter: "blur(2px)" }}
             initial={{ opacity: 0, rotate: p.r, scale: 0.8 }}
-            animate={reduce ? { opacity: op } : { opacity: op, scale: [1, 1.06, 1], y: [0, -amp.y, 0, amp.y * 0.4, 0], x: [0, amp.x, 0, -amp.x * 0.6, 0], rotate: [p.r, p.r + amp.r, p.r, p.r - amp.r * 0.5, p.r] }}
-            transition={{ duration: p.d, repeat: Infinity, ease: "easeInOut", delay: i * 0.35 }} />
+            animate={reduce ? { opacity: op } : { opacity: op, y: [0, -amp.y, 0], x: [0, amp.x, 0], rotate: [p.r, p.r + amp.r, p.r] }}
+            transition={{ duration: p.d * 1.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }} />
         );
       })}
       {!reduce && embers.map((e, i) => (
         <motion.span key={i} className="absolute bottom-0 rounded-full bg-primary shadow-[0_0_12px_hsl(var(--primary))]"
           style={{ left: `${e.x}%`, width: e.s, height: e.s }}
-          animate={{ y: [0, mobile ? -1400 : -900], opacity: [0, 1, 0], x: [0, i % 2 ? 40 : -40, i % 2 ? -10 : 10] }}
+          animate={{ y: [0, mobile ? -1000 : -800], opacity: [0, 0.6, 0], x: [0, i % 2 ? 16 : -16] }}
           transition={{ duration: e.d, repeat: Infinity, delay: e.delay, ease: "easeOut" }} />
       ))}
-      <div className={`absolute inset-0 bg-gradient-to-b from-transparent ${mobile ? "via-background/20" : "via-background/40"} to-background`} />
+      <div className={`absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background`} />
     </div>
   );
 }
@@ -79,31 +79,31 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
   const [, nav] = useLocation();
   const reduce = useReducedMotion();
   const mobile = useIsMobile();
-  const lift = (rank: number) => (mobile ? (rank === 1 ? -22 : -16) : rank === 1 ? -12 : -8);
+  const lift = (rank: number) => (rank === 1 ? -8 : -5);
   const slots = [items[1], items[0], items[2]].map((s, i) => ({ s, rank: [2, 1, 3][i] })).filter((x) => x.s);
   const h = { 1: "h-28 sm:h-32", 2: "h-20 sm:h-24", 3: "h-14 sm:h-16" } as Record<number, string>;
   return (
     <div className="relative mt-16 grid grid-cols-3 items-end gap-2 sm:mt-12 sm:gap-5">
       <motion.div aria-hidden className="pointer-events-none absolute inset-x-0 -top-6 -z-10 mx-auto h-64 w-64 rounded-full blur-3xl"
         style={{ background: items[0]?.color ?? "hsl(var(--primary))" }}
-        animate={{ scale: [1, 1.2, 1], opacity: [0.25, 0.5, 0.25] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} />
+        animate={{ scale: [1, 1.08, 1], opacity: [0.2, 0.32, 0.2] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} />
       {slots.map(({ s, rank }, i) => (
         <motion.button key={s.id} onClick={() => nav(`/title/${s.id}`)} data-testid={`podium-${rank}`}
           initial={{ opacity: 0, y: 80, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 18, delay: [0.2, 0, 0.35][i] }}
           className="group flex min-w-0 flex-col items-center text-center">
-          <motion.div className="relative" animate={reduce ? undefined : { y: [0, lift(rank), 0], scale: mobile ? [1, 1.05, 1] : [1, 1, 1], rotate: rank === 2 ? (mobile ? [-5, 3, -5] : [-2, 1, -2]) : rank === 3 ? (mobile ? [5, -3, 5] : [2, -1, 2]) : mobile ? [-2, 2, -2] : [0, 0, 0] }}
-            transition={{ duration: (mobile ? 2.6 : 3.4) + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}>
-            {rank === 1 && !reduce && [0, 1, 2, 3, 4].map((k) => (
+          <motion.div className="relative" animate={reduce ? undefined : { y: [0, lift(rank), 0], rotate: rank === 2 ? [-1, 0.5, -1] : rank === 3 ? [1, -0.5, 1] : [0, 0, 0] }}
+            transition={{ duration: 4.5 + i * 0.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }}>
+            {rank === 1 && !reduce && [0, 2].map((k) => (
               <motion.span key={k} className="absolute z-20 text-amber-300" style={{ left: `${[8, 80, 92, -6, 50][k]}%`, top: `${[10, 6, 60, 70, 96][k]}%` }}
-                animate={{ opacity: [0, 1, 0], scale: [0.4, 1.2, 0.4], rotate: [0, 90, 180] }} transition={{ duration: 1.8, repeat: Infinity, delay: k * 0.4 }}>
+                animate={{ opacity: [0, 0.7, 0], scale: [0.6, 1, 0.6] }} transition={{ duration: 3, repeat: Infinity, delay: k * 1.2 }}>
                 <Sparkles className="h-3.5 w-3.5" />
               </motion.span>
             ))}
             {rank === 1 && (
               <>
                 <motion.div className="absolute -inset-[3px] rounded-[14px]" style={{ background: "conic-gradient(from 0deg, hsl(var(--primary)), #fbbf24, transparent 40%, hsl(var(--primary)))" }}
-                  animate={{ rotate: 360 }} transition={{ duration: 5, repeat: Infinity, ease: "linear" }} />
-                <motion.div className="absolute inset-x-0 -top-8 z-10 mx-auto w-7 text-amber-400" animate={{ y: [0, -6, 0], rotate: [-8, 8, -8] }} transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}>
+                  animate={{ rotate: 360 }} transition={{ duration: 9, repeat: Infinity, ease: "linear" }} />
+                <motion.div className="absolute inset-x-0 -top-8 z-10 mx-auto w-7 text-amber-400" animate={{ y: [0, -3, 0], rotate: [-3, 3, -3] }} transition={{ duration: 3.6, repeat: Infinity, ease: "easeInOut" }}>
                   <Crown className="h-7 w-7 fill-amber-400/40 drop-shadow-[0_0_12px_rgba(251,191,36,.7)]" />
                 </motion.div>
               </>
@@ -112,7 +112,7 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
               className={`relative aspect-[2/3] rounded-xl object-cover shadow-2xl ring-1 ring-white/10 ${rank === 1 ? "w-24 sm:w-36" : "w-[72px] sm:w-28"}`} />
             {rank === 1 && <span className="shimmer pointer-events-none absolute inset-0 overflow-hidden rounded-xl" />}
             <motion.span className="absolute -bottom-3 left-1/2 -z-10 h-3 w-3/4 -translate-x-1/2 rounded-full bg-black/50 blur-md"
-              animate={reduce ? undefined : { scaleX: [1, 0.8, 1], opacity: [0.6, 0.35, 0.6] }} transition={{ duration: (mobile ? 2.6 : 3.4) + i * 0.4, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }} />
+              animate={reduce ? undefined : { scaleX: [1, 0.8, 1], opacity: [0.6, 0.35, 0.6] }} transition={{ duration: 4.5 + i * 0.5, repeat: Infinity, ease: "easeInOut", delay: i * 0.5 }} />
           </motion.div>
           <p className="mt-3 line-clamp-2 w-full px-1 text-xs font-semibold leading-tight group-hover:text-primary sm:text-sm">{s.title}</p>
           <div className="mt-1"><TypeBadge type={s.type} /></div>
@@ -140,8 +140,8 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
         <span className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(90deg, ${s.color ?? "hsl(var(--primary))"}22, transparent 60%)` }} />
         <span className="rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums transition-transform duration-300 group-hover:scale-110 sm:w-10 sm:text-4xl">{rank}</span>
         <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={s.cover} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-lg ring-1 ring-white/5" loading="lazy"
-          animate={reduce ? undefined : { y: [0, mobile ? -7 : -3, 0], rotate: [0, rank % 2 ? (mobile ? 4 : 1.5) : (mobile ? -4 : -1.5), 0] }}
-          transition={{ duration: (mobile ? 2.4 : 3.2) + (rank % 4) * 0.3, repeat: Infinity, ease: "easeInOut", delay: (rank % 6) * 0.25 }} />
+          animate={reduce ? undefined : { y: [0, -2, 0] }}
+          transition={{ duration: 4 + (rank % 4) * 0.4, repeat: Infinity, ease: "easeInOut", delay: (rank % 6) * 0.25 }} />
         <div className="min-w-0 flex-1">
           <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{s.title}</h3>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -156,7 +156,7 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
           </div>
         </div>
         {hot && (
-          <motion.span className="shrink-0 text-primary" animate={{ scale: [1, 1.18, 0.95, 1.1, 1], rotate: [0, -6, 4, -2, 0], opacity: [0.8, 1, 0.85, 1, 0.8] }} transition={{ duration: 1.6, repeat: Infinity, delay: rank * 0.12 }}>
+          <motion.span className="shrink-0 text-primary" animate={{ scale: [1, 1.08, 1], opacity: [0.85, 1, 0.85] }} transition={{ duration: 2.4, repeat: Infinity, delay: rank * 0.12 }}>
             <Flame className="h-5 w-5 fill-primary/30" />
           </motion.span>
         )}
@@ -179,7 +179,7 @@ export default function Trending() {
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
             <motion.p initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">
-              <motion.span animate={{ rotate: [0, -12, 10, 0], scale: [1, 1.2, 1] }} transition={{ duration: 1.5, repeat: Infinity }}><Flame className="h-3.5 w-3.5" /></motion.span>Charts
+              <motion.span animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2.4, repeat: Infinity }}><Flame className="h-3.5 w-3.5" /></motion.span>Charts
             </motion.p>
             <h1 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
               {"Trending".split("").map((c, i) => (

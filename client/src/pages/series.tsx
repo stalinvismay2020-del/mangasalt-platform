@@ -44,6 +44,7 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <TypeBadge type={s.type} />
                 <span className={`inline-flex items-center gap-1 text-xs font-medium ${s.readable ? "text-emerald-500" : "text-muted-foreground"}`}><ShieldCheck className="h-3.5 w-3.5" />{rightsLabel(s)}</span>
+                {s.rights === "original" && <Link href="/legal/copyright" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary" data-testid="link-report-copyright"><Flag className="h-3 w-3" />Report copyright</Link>}
               </div>
               <h1 className="font-display mt-2 text-3xl font-bold leading-tight sm:text-5xl" data-testid="text-series-title">{s.title}</h1>
               <p className="mt-2 text-sm text-muted-foreground">by <span className="font-medium text-foreground">{s.creator.displayName}</span> · {TYPE_ORIGIN[s.type]} · <span className="capitalize">{s.status}</span> · {s.year}</p>

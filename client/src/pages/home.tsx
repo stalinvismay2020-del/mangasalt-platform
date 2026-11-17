@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Flame, Star, TrendingUp, Clock, Trophy, Sparkles, Heart, BookOpen, Play, ShieldCheck, Compass, PenTool, Plus } from "lucide-react";
@@ -37,8 +37,10 @@ function Hero({ items }: { items?: WorldCard[] }) {
         </motion.div>
       </AnimatePresence>
       <div className="grain absolute inset-0 -z-10" />
+      <HeroAmbience color={glow} />
       <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-10 pt-6 sm:px-6 md:grid-cols-2 md:pb-16 md:pt-12">
-        <div className="relative mx-auto h-[300px] w-[205px] sm:h-[380px] sm:w-[255px] md:order-2 md:h-[450px] md:w-[300px]">
+        <motion.div className="relative mx-auto h-[300px] w-[205px] sm:h-[380px] sm:w-[255px] md:order-2 md:h-[450px] md:w-[300px]"
+          animate={{ y: [0, -6, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}>
           {list.map((it, idx) => {
             const off = (idx - i + list.length) % list.length;
             if (off > 2) return null;
@@ -54,7 +56,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
               </motion.button>
             );
           })}
-        </div>
+        </motion.div>
         <div className="min-w-0 text-center md:order-1 md:text-left">
           <AnimatePresence mode="wait">
             <motion.div key={s.id} initial="hide" animate="show" exit="exit" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
@@ -83,6 +85,34 @@ function Hero({ items }: { items?: WorldCard[] }) {
         </div>
       </div>
     </section>
+  );
+}
+
+/** Soft drifting light behind the hero, tinted with the current cover's colour. */
+function HeroAmbience({ color }: { color: string }) {
+  const reduce = useReducedMotion();
+  if (reduce) return null;
+  const dots = [12, 28, 46, 64, 82, 92];
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+      <motion.div className="absolute -left-20 top-10 h-64 w-64 rounded-full blur-3xl" style={{ background: color, opacity: 0.18 }}
+        animate={{ x: [0, 40, 0], y: [0, 20, 0] }} transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div className="absolute -right-16 bottom-10 h-72 w-72 rounded-full bg-primary blur-3xl" style={{ opacity: 0.12 }}
+        animate={{ x: [0, -30, 0], y: [0, -24, 0] }} transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }} />
+      {dots.map((l, k) => (
+        <motion.span key={k} className="absolute bottom-6 h-1 w-1 rounded-full bg-primary/70" style={{ left: `${l}%` }}
+          animate={{ y: [0, -260], opacity: [0, 0.6, 0] }} transition={{ duration: 8 + k, repeat: Infinity, delay: k * 1.3, ease: "easeOut" }} />
+      ))}
+    </div>
+  );
+}
+
+/** Fades sections in as they scroll into view. */
+function Reveal({ children }: { children: React.ReactNode }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 28 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-60px" }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}>
+      {children}
+    </motion.div>
   );
 }
 
@@ -198,15 +228,15 @@ export default function Home() {
     <div>
       <Hero items={data?.trending} />
       <div className="mx-auto max-w-6xl space-y-12 px-4 pb-16 sm:px-6">
-        {user && mine.data?.reading.length ? <ContinueReading items={mine.data.reading} /> : null}
-        <WorldRail kicker="Right now" icon={Flame} title="Trending worldwide" items={data?.trending} loading={isLoading} ranked action={<Link href="/trending" className="text-sm font-medium text-primary">Charts</Link>} />
-        <WorldRail kicker="Korea" icon={Sparkles} title="Popular manhwa" items={data?.manhwa} loading={isLoading} action={<Link href="/search/type/manhwa" className="text-sm font-medium text-primary">All</Link>} />
-        <FreeOnSalt items={(local.data ?? []).filter((s) => s.slug === "pepper-and-carrot")} />
-        <CreatorOriginals items={local.data ?? []} />
-        <WorldRail kicker="Japan" icon={BookOpen} title="Popular manga" items={data?.manga} loading={isLoading} action={<Link href="/search/type/manga" className="text-sm font-medium text-primary">All</Link>} />
-        <WorldRail kicker="China" icon={Sparkles} title="Popular manhua" items={data?.manhua} loading={isLoading} action={<Link href="/search/type/manhua" className="text-sm font-medium text-primary">All</Link>} />
-        <WorldRail kicker="All time" icon={Trophy} title="Top rated" items={data?.top} loading={isLoading} />
-        <GenreCloud />
+{user && mine.data?.reading.length ? <Reveal><ContinueReading items={mine.data.reading} /></Reveal> : null}
+        <Reveal><WorldRail kicker="Right now" icon={Flame} title="Trending worldwide" items={data?.trending} loading={isLoading} ranked action={<Link href="/trending" className="text-sm font-medium text-primary">Charts</Link>} /></Reveal>
+        <Reveal><WorldRail kicker="Korea" icon={Sparkles} title="Popular manhwa" items={data?.manhwa} loading={isLoading} action={<Link href="/search/type/manhwa" className="text-sm font-medium text-primary">All</Link>} /></Reveal>
+        <Reveal><FreeOnSalt items={(local.data ?? []).filter((s) => s.slug === "pepper-and-carrot")} /></Reveal>
+        <Reveal><CreatorOriginals items={local.data ?? []} /></Reveal>
+        <Reveal><WorldRail kicker="Japan" icon={BookOpen} title="Popular manga" items={data?.manga} loading={isLoading} action={<Link href="/search/type/manga" className="text-sm font-medium text-primary">All</Link>} /></Reveal>
+        <Reveal><WorldRail kicker="China" icon={Sparkles} title="Popular manhua" items={data?.manhua} loading={isLoading} action={<Link href="/search/type/manhua" className="text-sm font-medium text-primary">All</Link>} /></Reveal>
+        <Reveal><WorldRail kicker="All time" icon={Trophy} title="Top rated" items={data?.top} loading={isLoading} /></Reveal>
+        <Reveal><GenreCloud /></Reveal>
         <MostLiked />
       </div>
     </div>

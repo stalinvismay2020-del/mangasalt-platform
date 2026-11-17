@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
-import { storage, verifyPassword, studio, readingStats } from "./storage";
+import { storage, verifyPassword, studio, readingStats, takedowns } from "./storage";
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -170,6 +170,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const chapters = tp.length > md.filter((c: any) => c.inApp).length ? tp : md;
     res.json({ found: r.found || tp.length > 0, total: chapters.length, inApp: chapters.filter((c: any) => c.inApp).length, chapters, publishers: t.official });
   }));
+  app.post("/api/legal/takedown", (req, res) => {
+    const b = req.body ?? {};
+    const str = (k: string, max: number) => (typeof b[k] === "string" ? b[k].trim().slice(0, max) : "");
+    const t = { name: str("name", 120), email: str("email", 200), ownerOf: str("ownerOf", 300), target: str("target", 500), details: str("details", 3000) };
+    if (!t.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.email) || !t.ownerOf || !t.target || t.details.length < 20)
+      return res.status(400).json({ message: "Please fill in every field (details: at least 20 characters)." });
+    if (b.goodFaith !== true || b.accurate !== true) return res.status(400).json({ message: "Please confirm both statements." });
+    res.status(201).json({ id: takedowns.create(t) });
+  });
   app.get("/api/me/stats", requireAuth, (req, res) => res.json(readingStats((req as any).user.id)));
   app.get("/api/world/random", wrap(async (req, res) => {
     const type = typeof req.query.type === "string" ? req.query.type : undefined;

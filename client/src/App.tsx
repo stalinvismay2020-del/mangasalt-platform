@@ -20,6 +20,8 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import NotFound from "@/pages/not-found";
+import Legal from "@/pages/legal";
+import { Link } from "wouter";
 
 function ScrollTop() {
   const [loc] = useLocation();
@@ -49,10 +51,18 @@ function Shell() {
       <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
         <AppRouter />
       </motion.main>
-      <footer className="mt-10 hidden border-t border-border md:block">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-8 text-sm text-muted-foreground">
-          <span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span>
-          <p className="max-w-md text-right">Catalogue data from AniList. Chapters are shown only from official English publishers that allow in-app reading, or hosted under an open license. No unofficial scans, ever.</p>
+      <footer className="mt-10 border-t border-border">
+        <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
+          <div>
+            <span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span>
+            <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from AniList. Chapters only from official publishers, open licenses, or their own creators. No unofficial scans, ever.</p>
+          </div>
+          <nav className="flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Legal">
+            <Link href="/legal/licenses" className="hover:text-foreground" data-testid="link-footer-licenses">Licenses &amp; credits</Link>
+            <Link href="/legal/terms" className="hover:text-foreground">Terms</Link>
+            <Link href="/legal/privacy" className="hover:text-foreground">Privacy</Link>
+            <Link href="/legal/copyright" className="hover:text-foreground">Copyright &amp; takedown</Link>
+          </nav>
         </div>
       </footer>
       <BottomNav />
@@ -77,6 +87,8 @@ function AppRouter() {
       <Route path="/library" component={Library} />
       <Route path="/profile" component={Profile} />
       <Route path="/series/:slug" component={SeriesPage} />
+      <Route path="/legal" component={Legal} />
+      <Route path="/legal/:section" component={Legal} />
       <Route component={NotFound} />
     </Switch>
   );

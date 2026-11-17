@@ -450,3 +450,12 @@ export function readingStats(userId: number) {
   const week = Array.from({ length: 7 }, (_, i) => { const d = today - 6 + i; return { day: d, count: [...rows, ...local].filter((r) => day(Number(r.at)) === d).length }; });
   return { chapters, titles, streak, activeDays: days.size, week };
 }
+
+// ---------- copyright / DMCA takedown requests ----------
+sqlite.exec(`CREATE TABLE IF NOT EXISTS takedowns (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL, owner_of TEXT NOT NULL, target TEXT NOT NULL, details TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'open', created_at INTEGER NOT NULL)`);
+export const takedowns = {
+  create(t: { name: string; email: string; ownerOf: string; target: string; details: string }) {
+    const r = sqlite.prepare(`INSERT INTO takedowns (name, email, owner_of, target, details, created_at) VALUES (?,?,?,?,?,?)`).run(t.name, t.email, t.ownerOf, t.target, t.details, Date.now());
+    return Number(r.lastInsertRowid);
+  },
+};
