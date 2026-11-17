@@ -56,5 +56,5 @@ Results are cached in the `official_en` table (negatives are re-checked weekly).
 ## Extras
 
 - Animated day/night switch with a circular screen reveal.
-- Transparent glass navigation bar and reader controls (keyboard: arrows for prev/next, F fullscreen, H hide controls).
+- Transparent glass navigation bar and reader controls (keyboard: arrows for prev/next, H hide controls).
 - Reading stats with a daily streak on Profile, "Surprise me" random pick, share button on title pages.

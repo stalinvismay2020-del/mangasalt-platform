@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Maximize2, Eye, EyeOff, Clock, Coins } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
 import type { WorldDetail, WorldChapters } from "@shared/world";
 
 // Hosts that serve the app inside a strict sandbox (no same-origin) pass that sandbox to embedded readers, which then can't start.
-const SANDBOXED = (() => { try { return typeof window !== "undefined" && !window.localStorage && false; } catch { return true; } })();
+const SANDBOXED = typeof window !== "undefined" && window.origin === "null"; // opaque origin = sandbox without same-origin
 
 export default function OfficialReader() {
   const { id, key: rawKey } = useParams<{ id: string; key: string }>();
@@ -40,12 +40,10 @@ export default function OfficialReader() {
   }, [id]);
 
   const [ui, setUi] = useState(true);
-  const fs = () => { const el: any = document.documentElement; if (document.fullscreenElement) document.exitFullscreen?.(); else el.requestFullscreen?.().catch(() => {}); };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowRight" && next) go(next.key);
       if (e.key === "ArrowLeft" && prev) go(prev.key);
-      if (e.key.toLowerCase() === "f") fs();
       if (e.key.toLowerCase() === "h") setUi((v) => !v);
     };
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
@@ -91,7 +89,6 @@ export default function OfficialReader() {
               <p className="truncate text-[13px] font-semibold leading-tight" data-testid="text-reader-title">{t.data?.title ?? "Loading…"}</p>
               <p className="truncate text-[11px] leading-tight text-white/65">{cur ? `Ch. ${cur.number}${cur.title ? ` · ${cur.title}` : ""} · ${access}` : ch.isLoading ? "Loading chapter…" : "Chapter unavailable"}</p>
             </div>
-            <button onClick={fs} className="glass-btn hidden h-10 w-10 shrink-0 place-items-center rounded-full transition hover:bg-white/20 active:scale-90 sm:grid" aria-label="Fullscreen" data-testid="button-fullscreen"><Maximize2 className="h-4 w-4" /></button>
             <button onClick={() => setDrawer(true)} className="glass-btn grid h-10 w-10 shrink-0 place-items-center rounded-full transition hover:bg-white/20 active:scale-90" aria-label="Chapters" data-testid="button-reader-chapters"><List className="h-5 w-5" /></button>
           </motion.header>
         )}
