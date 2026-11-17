@@ -334,3 +334,8 @@
   .shimmer::after { content:''; position:absolute; inset:0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, hsl(var(--foreground)/.06), transparent); animation: shimmer 1.4s infinite; }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 }
+
+@layer utilities {
+  .glow-primary { box-shadow: 0 10px 40px -10px hsl(var(--primary) / .75); }
+  .glow-primary:hover { box-shadow: 0 14px 50px -8px hsl(var(--primary) / .9); }
+}

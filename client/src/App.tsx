@@ -12,6 +12,8 @@ import Library from "@/pages/library";
 import Profile from "@/pages/profile";
 import SeriesPage from "@/pages/series";
 import Reader from "@/pages/reader";
+import TitlePage from "@/pages/title";
+import OfficialReader from "@/pages/official-reader";
 import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge } from "@/components/shared";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -26,13 +28,14 @@ function ScrollTop() {
 
 function Shell() {
   const [loc] = useLocation();
-  if (loc.startsWith("/read/")) return (
+  if (loc.startsWith("/read/") || loc.startsWith("/mp/")) return (
     <>
       <ScrollTop />
       <ToastBridge />
       <Switch>
         <Route path="/read/:id/:page" component={Reader} />
         <Route path="/read/:id" component={Reader} />
+        <Route path="/mp/:id/:key" component={OfficialReader} />
       </Switch>
       <AuthDialog />
     </>
@@ -48,7 +51,7 @@ function Shell() {
       <footer className="mt-10 hidden border-t border-border md:block">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-8 text-sm text-muted-foreground">
           <span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span>
-          <p className="max-w-md text-right">Every series on MANGASALT is hosted here with the rights holder's permission or an open license. Report infringing content and we take it down.</p>
+          <p className="max-w-md text-right">Catalogue data from AniList. Chapters are shown only from official English publishers that allow in-app reading, or hosted under an open license. No unofficial scans, ever.</p>
         </div>
       </footer>
       <BottomNav />
@@ -64,6 +67,9 @@ function AppRouter() {
       <Route path="/" component={Home} />
       <Route path="/trending" component={Trending} />
       <Route path="/search" component={Search} />
+      <Route path="/search/genre/:genre" component={Search} />
+      <Route path="/search/type/:type" component={Search} />
+      <Route path="/title/:id" component={TitlePage} />
       <Route path="/library" component={Library} />
       <Route path="/profile" component={Profile} />
       <Route path="/series/:slug" component={SeriesPage} />

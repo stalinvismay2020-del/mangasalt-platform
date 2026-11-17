@@ -1,7 +1,9 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
 import { storage, verifyPassword } from "./storage";
-import { seedIfEmpty, backfillMeta, ensurePepper } from "./seed";
+import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
+import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
+import { officialChapters } from "./mangadex";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
 function token(req: Request) {
@@ -18,7 +20,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   seedIfEmpty();
-  backfillMeta();
+  removePlaceholders();
   ensurePepper();
 
   // ---------- auth ----------
@@ -126,6 +128,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (reason.length < 3) return res.status(400).json({ message: "Tell us what is wrong" });
     if (!storage.reportComment((req as any).user.id, Number(req.params.id), reason)) return res.status(404).json({ message: "Comment not found" });
     res.json({ ok: true });
+  });
+
+  // ---------- worldwide catalogue (AniList metadata + official in-app chapters) ----------
+  const wrap = (fn: (req: Request, res: Response) => Promise<any>) => (req: Request, res: Response) =>
+    fn(req, res).catch((e: any) => res.status(e.status ?? 502).json({ message: e.message ?? "Catalogue unavailable" }));
+  app.get("/api/world/genres", (_req, res) => res.json(WORLD_GENRES));
+  app.get("/api/world/home", wrap(async (_req, res) => res.json(await worldHome())));
+  app.get("/api/world/search", wrap(async (req, res) => {
+    const str = (k: string, n = 80) => (typeof req.query[k] === "string" ? String(req.query[k]).trim().slice(0, n) : "");
+    res.json(await worldSearch({
+      q: str("q") || undefined, genres: str("genres", 300).split(",").filter(Boolean), type: str("type") || undefined,
+      status: str("status") || undefined, sort: str("sort") || undefined, page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
+    }));
+  }));
+  app.get("/api/world/title/:id", wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    const t = await worldTitle(id);
+    storage.upsertWorld(t);
+    res.json({ ...t, ...storage.worldState(id, me(req)?.id) });
+  }));
+  app.get("/api/world/title/:id/chapters", wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    const t = await worldTitle(id);
+    const titles = [t.title, t.altTitle ?? ""];
+    const r = await officialChapters(id, titles);
+    // Only chapters whose official publisher allows in-app reading are returned with a reader source.
+    const chapters = r.chapters.map((c) => {
+      const src = c.sources.find((s) => s.embeddable);
+      return { key: c.key, number: c.number, title: c.title, publishedAt: c.publishedAt, inApp: !!src, publisher: src?.publisher ?? c.sources[0]?.publisher ?? null, src: src?.url ?? null };
+    });
+    res.json({ found: r.found, total: chapters.length, inApp: chapters.filter((c) => c.inApp).length, chapters });
+  }));
+  app.post("/api/world/title/:id/like", requireAuth, (req, res) => { const r = storage.toggleWorld("world_likes", (req as any).user.id, Number(req.params.id)); res.json({ liked: r.on, likes: r.likes }); });
+  app.post("/api/world/title/:id/save", requireAuth, (req, res) => res.json({ saved: storage.toggleWorld("world_saves", (req as any).user.id, Number(req.params.id)).on }));
+  app.post("/api/world/title/:id/read", (req, res) => {
+    const u = me(req);
+    const ch = typeof req.body?.chapter === "string" ? req.body.chapter.slice(0, 20) : "";
+    if (u && ch) storage.worldRead(u.id, Number(req.params.id), ch);
+    res.json({ ok: true });
+  });
+  app.get("/api/me/world", requireAuth, (req, res) => res.json(storage.worldLibrary((req as any).user.id)));
+  app.get("/api/world/community", (_req, res) => res.json(storage.mostLikedWorld()));
+  // comments on worldwide titles are stored with a negative series id (-anilistId)
+  app.get("/api/world/title/:id/comments", (req, res) => res.json(storage.comments(-Number(req.params.id), me(req)?.id, req.query.chapter ? Number(req.query.chapter) : undefined)));
+  app.post("/api/world/title/:id/comments", requireAuth, (req, res) => {
+    const sid = -Number(req.params.id);
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    if (body.length < 1 || body.length > 2000) return res.status(400).json({ message: "Comments need 1 to 2000 characters" });
+    const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
+    if (parentId && storage.seriesIdOfComment(parentId) !== sid) return res.status(400).json({ message: "Reply target not found" });
+    res.json(storage.addComment((req as any).user.id, sid, body, !!req.body?.spoiler, parentId, null));
   });
 
   return httpServer;

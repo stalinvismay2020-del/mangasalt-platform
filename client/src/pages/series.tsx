@@ -157,36 +157,38 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
 }
 
 // ---------- Comments ----------
-export function Comments({ seriesId, chapterId }: { seriesId: number; chapterId?: number }) {
-  const key = [`/api/series/${seriesId}/comments`, chapterId ? { chapter: chapterId } : {}];
+export function Comments({ seriesId, chapterId, base }: { seriesId: number; chapterId?: number; base?: string }) {
+  const B = base ?? `/api/series/${seriesId}/comments`;
+  const key = [B, chapterId ? { chapter: chapterId } : {}];
   const { data, isLoading } = useQuery<CommentItem[]>({ queryKey: key });
   const total = (data ?? []).reduce((n, c) => n + 1 + c.replies.length, 0);
   return (
     <div className="mt-4">
-      <Composer seriesId={seriesId} chapterId={chapterId} />
+      <Composer seriesId={seriesId} chapterId={chapterId} base={B} />
       <p className="mt-5 text-sm text-muted-foreground" data-testid="text-comment-count">{total} {total === 1 ? "comment" : "comments"}</p>
       {isLoading && <div className="mt-3 h-20 animate-pulse rounded-xl bg-muted" />}
       <ul className="mt-2 divide-y divide-border/60">
-        {data?.map((c) => <CommentRow key={c.id} c={c} seriesId={seriesId} chapterId={chapterId} />)}
+        {data?.map((c) => <CommentRow key={c.id} c={c} seriesId={seriesId} chapterId={chapterId} base={B} />)}
       </ul>
       {data?.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No comments yet. Start the discussion.</p>}
     </div>
   );
 }
 
-function invalidateComments(seriesId: number) {
-  queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith(`/api/series/${seriesId}/comments`) });
+function invalidateComments(seriesId: number, base?: string) {
+  const B = base ?? `/api/series/${seriesId}/comments`;
+  queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).startsWith(B) });
   queryClient.invalidateQueries({ queryKey: ["/api/home"] });
 }
 
-function Composer({ seriesId, chapterId, parentId, onDone, autoFocus }: { seriesId: number; chapterId?: number; parentId?: number; onDone?: () => void; autoFocus?: boolean }) {
+function Composer({ seriesId, chapterId, parentId, onDone, autoFocus, base }: { seriesId: number; chapterId?: number; parentId?: number; onDone?: () => void; autoFocus?: boolean; base?: string }) {
   const { user, openAuth } = useApp();
   const { toast } = useToast();
   const [body, setBody] = useState("");
   const [spoiler, setSpoiler] = useState(false);
   const m = useMutation({
-    mutationFn: async () => (await apiRequest("POST", `/api/series/${seriesId}/comments`, { body, spoiler, parentId, chapterId })).json(),
-    onSuccess: () => { setBody(""); setSpoiler(false); invalidateComments(seriesId); onDone?.(); },
+    mutationFn: async () => (await apiRequest("POST", base ?? `/api/series/${seriesId}/comments`, { body, spoiler, parentId, chapterId })).json(),
+    onSuccess: () => { setBody(""); setSpoiler(false); invalidateComments(seriesId, base); onDone?.(); },
     onError: (e: Error) => toast({ title: "Could not post", description: e.message }),
   });
   if (!user) return (
@@ -214,7 +216,7 @@ function Composer({ seriesId, chapterId, parentId, onDone, autoFocus }: { series
   );
 }
 
-function CommentRow({ c, seriesId, chapterId, isReply }: { c: CommentItem; seriesId: number; chapterId?: number; isReply?: boolean }) {
+function CommentRow({ c, seriesId, chapterId, isReply, base }: { c: CommentItem; seriesId: number; chapterId?: number; isReply?: boolean; base?: string }) {
   const { user, openAuth } = useApp();
   const { toast } = useToast();
   const [reveal, setReveal] = useState(false);
@@ -228,7 +230,7 @@ function CommentRow({ c, seriesId, chapterId, isReply }: { c: CommentItem; serie
   });
   const report = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/comments/${c.id}/report`, { reason: "Inappropriate content" })).json(),
-    onSuccess: () => { toast({ title: "Thanks for reporting", description: "Our moderators will review this comment." }); invalidateComments(seriesId); },
+    onSuccess: () => { toast({ title: "Thanks for reporting", description: "Our moderators will review this comment." }); invalidateComments(seriesId, base); },
   });
   const need = (fn: () => void) => () => (user ? fn() : openAuth("login"));
   const hidden = c.spoiler && !reveal;
@@ -250,10 +252,10 @@ function CommentRow({ c, seriesId, chapterId, isReply }: { c: CommentItem; serie
             {!isReply && <button onClick={need(() => setReplying(!replying))} className="flex items-center gap-1 hover:text-foreground" data-testid={`button-reply-${c.id}`}><Reply className="h-3.5 w-3.5" />Reply</button>}
             <button onClick={need(() => report.mutate())} className="flex items-center gap-1 hover:text-foreground" data-testid={`button-report-${c.id}`}><Flag className="h-3.5 w-3.5" />Report</button>
           </div>
-          {replying && <div className="mt-3"><Composer seriesId={seriesId} chapterId={chapterId} parentId={c.id} onDone={() => setReplying(false)} autoFocus /></div>}
+          {replying && <div className="mt-3"><Composer seriesId={seriesId} chapterId={chapterId} parentId={c.id} onDone={() => setReplying(false)} autoFocus base={base} /></div>}
           {c.replies.length > 0 && (
             <ul className="mt-1 border-l border-border/70 pl-3">
-              {c.replies.map((r) => <CommentRow key={r.id} c={r} seriesId={seriesId} chapterId={chapterId} isReply />)}
+              {c.replies.map((r) => <CommentRow key={r.id} c={r} seriesId={seriesId} chapterId={chapterId} isReply base={base} />)}
             </ul>
           )}
         </div>

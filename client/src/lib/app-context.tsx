@@ -20,7 +20,16 @@ const AppCtx = createContext<Ctx | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<PublicUser | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
+  const sys = () => (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  const [theme, setTheme] = useState<Theme>(sys);
+  const [manual, setManual] = useState(false);
+  useEffect(() => {
+    if (manual) return;
+    const mq = window.matchMedia?.("(prefers-color-scheme: light)");
+    const on = () => setTheme(mq.matches ? "light" : "dark");
+    mq?.addEventListener?.("change", on);
+    return () => mq?.removeEventListener?.("change", on);
+  }, [manual]);
   const [authOpen, setAuthOpen] = useState<Ctx["authOpen"]>(false);
   const [openSeries, setOpenSeries] = useState<SeriesCard | null>(null);
 
@@ -37,7 +46,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: Ctx = {
     user,
     theme,
-    toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
+    toggleTheme: () => { setManual(true); setTheme((t) => (t === "dark" ? "light" : "dark")); },
     authOpen,
     openAuth: (mode = "login") => setAuthOpen(mode),
     closeAuth: () => setAuthOpen(false),

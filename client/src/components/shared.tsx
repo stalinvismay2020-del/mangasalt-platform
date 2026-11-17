@@ -244,14 +244,7 @@ export function TopBar() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
-          <button onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} data-testid="button-theme"
-            className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-accent hover:text-foreground">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span key={theme} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </motion.span>
-            </AnimatePresence>
-          </button>
+          <ThemeSwitch />
           <Link href="/profile" aria-label="Profile" data-testid="button-profile"
             className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground">
             {user ? <Avatar user={user} size={34} /> : <UserIcon className="h-4 w-4" />}
@@ -329,5 +322,26 @@ export function RankRow({ s, rank, score, max, unit = "likes" }: { s: SeriesCard
       </div>
       <div onClick={(e) => e.stopPropagation()}><LikeButton s={s} /></div>
     </motion.li>
+  );
+}
+
+// ---------- Theme switch (sun / moon) ----------
+export function ThemeSwitch({ className = "" }: { className?: string }) {
+  const { theme, toggleTheme } = useApp();
+  const dark = theme === "dark";
+  return (
+    <button role="switch" aria-checked={dark} aria-label="Dark mode" onClick={toggleTheme} data-testid="switch-theme"
+      className={`relative flex h-8 w-[60px] shrink-0 items-center rounded-full border p-0.5 transition-colors duration-500 ${dark ? "border-white/10 bg-[hsl(230_30%_14%)]" : "border-amber-300/60 bg-amber-100"} ${className}`}>
+      <Sun className={`absolute left-2 h-3.5 w-3.5 transition-opacity ${dark ? "opacity-40 text-white" : "opacity-0"}`} />
+      <Moon className={`absolute right-2 h-3.5 w-3.5 transition-opacity ${dark ? "opacity-0" : "opacity-50 text-amber-700"}`} />
+      <motion.span layout transition={{ type: "spring", stiffness: 500, damping: 32 }}
+        className={`relative z-10 grid h-6 w-6 place-items-center rounded-full shadow-md ${dark ? "ml-auto bg-[hsl(230_25%_30%)]" : "bg-white"}`}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={theme} initial={{ rotate: -120, scale: 0.4, opacity: 0 }} animate={{ rotate: 0, scale: 1, opacity: 1 }} exit={{ rotate: 120, scale: 0.4, opacity: 0 }} transition={{ duration: 0.25 }}>
+            {dark ? <Moon className="h-3.5 w-3.5 fill-indigo-200 text-indigo-200" /> : <Sun className="h-3.5 w-3.5 fill-amber-400 text-amber-500" />}
+          </motion.span>
+        </AnimatePresence>
+      </motion.span>
+    </button>
   );
 }

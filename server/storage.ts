@@ -22,6 +22,12 @@ CREATE TABLE IF NOT EXISTS reading_list_items (id INTEGER PRIMARY KEY AUTOINCREM
 CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, series_id INTEGER NOT NULL, chapter_id INTEGER, viewed_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY AUTOINCREMENT, comment_id INTEGER NOT NULL, user_id INTEGER NOT NULL, reason TEXT NOT NULL, created_at INTEGER NOT NULL);
 `);
+sqlite.exec(`
+CREATE TABLE IF NOT EXISTS world_titles (anilist_id INTEGER PRIMARY KEY, title TEXT NOT NULL, cover TEXT NOT NULL, type TEXT NOT NULL, color TEXT, updated_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS world_likes (user_id INTEGER NOT NULL, anilist_id INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, anilist_id));
+CREATE TABLE IF NOT EXISTS world_saves (user_id INTEGER NOT NULL, anilist_id INTEGER NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY (user_id, anilist_id));
+CREATE TABLE IF NOT EXISTS world_history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, anilist_id INTEGER NOT NULL, chapter TEXT, at INTEGER NOT NULL);
+`);
 for (const [col, def] of [["rating", "INTEGER NOT NULL DEFAULT 80"], ["year", "INTEGER NOT NULL DEFAULT 2025"]]) {
   const cols = (sqlite.prepare(`PRAGMA table_info(series)`).all() as any[]).map((c) => c.name);
   if (!cols.includes(col)) sqlite.exec(`ALTER TABLE series ADD COLUMN ${col} ${def}`);
@@ -312,6 +318,40 @@ export class Storage {
     return true;
   }
   seriesIdOfComment(id: number) { return (sqlite.prepare(`SELECT series_id FROM comments WHERE id = ?`).get(id) as any)?.series_id as number | undefined; }
+
+  // ---------- worldwide (AniList) titles ----------
+  upsertWorld(t: { id: number; title: string; cover: string; type: string; color: string | null }) {
+    sqlite.prepare(`INSERT INTO world_titles (anilist_id, title, cover, type, color, updated_at) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(anilist_id) DO UPDATE SET title=excluded.title, cover=excluded.cover, type=excluded.type, color=excluded.color, updated_at=excluded.updated_at`).run(t.id, t.title, t.cover, t.type, t.color, Date.now());
+  }
+  worldState(id: number, me?: number) {
+    const likes = (sqlite.prepare(`SELECT COUNT(*) AS n FROM world_likes WHERE anilist_id = ?`).get(id) as any).n;
+    const u = me ?? -1;
+    const liked = !!sqlite.prepare(`SELECT 1 FROM world_likes WHERE user_id = ? AND anilist_id = ?`).get(u, id);
+    const saved = !!sqlite.prepare(`SELECT 1 FROM world_saves WHERE user_id = ? AND anilist_id = ?`).get(u, id);
+    const last: any = sqlite.prepare(`SELECT chapter FROM world_history WHERE user_id = ? AND anilist_id = ? ORDER BY at DESC LIMIT 1`).get(u, id);
+    const read = sqlite.prepare(`SELECT DISTINCT chapter FROM world_history WHERE user_id = ? AND anilist_id = ?`).all(u, id).map((r: any) => r.chapter);
+    return { likes, likedByMe: liked, savedByMe: saved, lastChapter: last?.chapter ?? null, readChapters: read };
+  }
+  toggleWorld(table: "world_likes" | "world_saves", userId: number, id: number) {
+    const ex = sqlite.prepare(`SELECT 1 FROM ${table} WHERE user_id = ? AND anilist_id = ?`).get(userId, id);
+    if (ex) sqlite.prepare(`DELETE FROM ${table} WHERE user_id = ? AND anilist_id = ?`).run(userId, id);
+    else sqlite.prepare(`INSERT INTO ${table} (user_id, anilist_id, created_at) VALUES (?,?,?)`).run(userId, id, Date.now());
+    return { on: !ex, likes: (sqlite.prepare(`SELECT COUNT(*) AS n FROM world_likes WHERE anilist_id = ?`).get(id) as any).n };
+  }
+  worldRead(userId: number, id: number, chapter: string) {
+    sqlite.prepare(`INSERT INTO world_history (user_id, anilist_id, chapter, at) VALUES (?,?,?,?)`).run(userId, id, chapter, Date.now());
+  }
+  worldLibrary(userId: number) {
+    const saved = sqlite.prepare(`SELECT w.* FROM world_saves s JOIN world_titles w ON w.anilist_id = s.anilist_id WHERE s.user_id = ? ORDER BY s.created_at DESC`).all(userId);
+    const reading = sqlite.prepare(`SELECT w.*, h.chapter, h.at FROM (SELECT anilist_id, chapter, MAX(at) AS at FROM world_history WHERE user_id = ? GROUP BY anilist_id) h JOIN world_titles w ON w.anilist_id = h.anilist_id ORDER BY h.at DESC LIMIT 12`).all(userId);
+    const map = (r: any) => ({ id: r.anilist_id, title: r.title, cover: r.cover, type: r.type, color: r.color, chapter: r.chapter ?? null });
+    return { saved: saved.map(map), reading: reading.map(map) };
+  }
+  mostLikedWorld(limit = 10) {
+    return sqlite.prepare(`SELECT w.*, COUNT(l.user_id) AS likes FROM world_likes l JOIN world_titles w ON w.anilist_id = l.anilist_id GROUP BY l.anilist_id ORDER BY likes DESC LIMIT ?`).all(limit)
+      .map((r: any) => ({ id: r.anilist_id, title: r.title, cover: r.cover, type: r.type, color: r.color, likes: r.likes }));
+  }
 
   isEmpty() { return (sqlite.prepare(`SELECT COUNT(*) AS n FROM series`).get() as any).n === 0; }
   raw() { return sqlite; }

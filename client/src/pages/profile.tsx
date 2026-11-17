@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Moon, Sun, Heart, BookOpen, MessageCircle, Users, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHead, Avatar, EmptyBox } from "@/components/shared";
+import { PageHead, Avatar, EmptyBox, ThemeSwitch } from "@/components/shared";
 import { useApp, compact } from "@/lib/app-context";
 import type { LibraryData } from "@shared/schema";
 
@@ -18,9 +18,7 @@ export default function Profile() {
           <Button className="rounded-full px-6" onClick={() => openAuth("login")} data-testid="button-profile-signin">Sign in</Button>
           <Button variant="outline" className="rounded-full px-6" onClick={() => openAuth("signup")} data-testid="button-profile-signup">Create account</Button>
         </div>
-        <button onClick={toggleTheme} className="mx-auto mt-8 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground" data-testid="button-profile-theme">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}Switch to {theme === "dark" ? "light" : "dark"} theme
-        </button>
+        <div className="mx-auto mt-8 flex w-fit items-center gap-3 text-sm text-muted-foreground">Dark mode<ThemeSwitch /></div>
       </div>
     );
   const c = lib.data?.counts;
@@ -51,9 +49,9 @@ export default function Profile() {
         )}
       </section>
       <section className="divide-y divide-border rounded-2xl border border-border bg-card">
-        <button onClick={toggleTheme} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm hover:bg-accent/50" data-testid="button-profile-theme">
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}Theme<span className="ml-auto capitalize text-muted-foreground">{theme}</span>
-        </button>
+        <div className="flex w-full items-center gap-3 px-4 py-3 text-sm">
+          {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}Dark mode<ThemeSwitch className="ml-auto" />
+        </div>
         <div className="flex items-center gap-3 px-4 py-3.5 text-sm text-muted-foreground"><PenTool className="h-4 w-4" />Creator Studio<span className="ml-auto text-xs">Next build</span></div>
         <button onClick={signOut} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm text-primary hover:bg-accent/50" data-testid="button-signout"><LogOut className="h-4 w-4" />Sign out</button>
       </section>
