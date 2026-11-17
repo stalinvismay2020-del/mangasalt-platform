@@ -150,11 +150,11 @@ export function QuickView() {
   }, [s?.id]);
   return (
     <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-3xl overflow-hidden border-white/10 p-0 sm:rounded-2xl">
+      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto border-white/10 p-0 sm:rounded-2xl">
         {current && (
           <div className="grid sm:grid-cols-[240px_1fr]">
-            <div className="relative aspect-[2/3] sm:aspect-auto">
-              <img src={asset(current.cover)} alt="" className="h-full w-full object-cover" />
+            <div className="relative h-56 sm:h-auto">
+              <img src={asset(current.cover)} alt="" className="h-full w-full object-cover object-[center_20%]" />
               <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-background/40" />
             </div>
             <div className="flex flex-col gap-4 p-6">
