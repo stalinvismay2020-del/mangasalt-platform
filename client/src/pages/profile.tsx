@@ -1,3 +1,4 @@
+import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { LogOut, Moon, Sun, Heart, BookOpen, MessageCircle, Users, PenTool } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ export default function Profile() {
         <div className="flex w-full items-center gap-3 px-4 py-3 text-sm">
           {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}Dark mode<ThemeSwitch className="ml-auto" />
         </div>
-        <div className="flex items-center gap-3 px-4 py-3.5 text-sm text-muted-foreground"><PenTool className="h-4 w-4" />Creator Studio<span className="ml-auto text-xs">Next build</span></div>
+        <Link href="/studio" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-studio"><PenTool className="h-4 w-4 text-primary" />Creator Studio<span className="ml-auto text-xs text-muted-foreground">Publish your manga</span></Link>
         <button onClick={signOut} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm text-primary hover:bg-accent/50" data-testid="button-signout"><LogOut className="h-4 w-4" />Sign out</button>
       </section>
     </div>

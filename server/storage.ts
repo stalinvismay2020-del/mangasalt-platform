@@ -358,3 +358,67 @@ export class Storage {
 }
 
 export const storage = new Storage();
+
+// ---------- Creator Studio ----------
+const slugify = (t: string) => t.toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/[\s_-]+/g, "-").slice(0, 60) || "series";
+export const studio = {
+  becomeCreator(userId: number) { sqlite.prepare(`UPDATE users SET is_creator = 1 WHERE id = ?`).run(userId); },
+  mySeries(userId: number) {
+    return sqlite.prepare(`SELECT s.id, s.slug, s.title, s.type, s.cover, s.status, s.views, s.created_at,
+      (SELECT COUNT(*) FROM chapters c WHERE c.series_id = s.id) AS chapters,
+      (SELECT COUNT(*) FROM series_likes l WHERE l.series_id = s.id) AS likes,
+      (SELECT COUNT(*) FROM comments m WHERE m.series_id = s.id) AS comments
+      FROM series s WHERE s.creator_id = ? ORDER BY s.created_at DESC`).all(userId);
+  },
+  owned(userId: number, seriesId: number) {
+    return sqlite.prepare(`SELECT * FROM series WHERE id = ? AND creator_id = ?`).get(seriesId, userId) as any;
+  },
+  getSeries(userId: number, seriesId: number) {
+    const s = this.owned(userId, seriesId);
+    if (!s) return undefined;
+    const chapters = sqlite.prepare(`SELECT id, number, title, pages, created_at FROM chapters WHERE series_id = ? ORDER BY number`).all(seriesId)
+      .map((c: any) => ({ id: c.id, number: c.number, title: c.title, pages: JSON.parse(c.pages), createdAt: c.created_at }));
+    return { id: s.id, slug: s.slug, title: s.title, type: s.type, genres: JSON.parse(s.genres), synopsis: s.synopsis, cover: s.cover, status: s.status, views: s.views, chapters };
+  },
+  createSeries(userId: number, d: { title: string; type: string; genres: string[]; synopsis: string; cover: string; status: string }) {
+    let slug = slugify(d.title), n = 1;
+    while (sqlite.prepare(`SELECT 1 FROM series WHERE slug = ?`).get(slug)) slug = `${slugify(d.title)}-${++n}`;
+    const r = sqlite.prepare(`INSERT INTO series (slug, title, type, genres, synopsis, cover, creator_id, status, views, rights, created_at, rating, year) VALUES (?,?,?,?,?,?,?,?,0,'original',?,0,?)`)
+      .run(slug, d.title, d.type, JSON.stringify(d.genres), d.synopsis, d.cover, userId, d.status, Date.now(), new Date().getFullYear());
+    this.becomeCreator(userId);
+    return { id: Number(r.lastInsertRowid), slug };
+  },
+  updateSeries(seriesId: number, d: Partial<{ title: string; type: string; genres: string[]; synopsis: string; cover: string; status: string }>) {
+    const sets: string[] = [], vals: any[] = [];
+    for (const [k, v] of Object.entries(d)) { if (v === undefined) continue; sets.push(`${k} = ?`); vals.push(k === "genres" ? JSON.stringify(v) : v); }
+    if (sets.length) sqlite.prepare(`UPDATE series SET ${sets.join(", ")} WHERE id = ?`).run(...vals, seriesId);
+  },
+  deleteSeries(seriesId: number) {
+    const chapterIds = sqlite.prepare(`SELECT id FROM chapters WHERE series_id = ?`).all(seriesId).map((c: any) => c.id);
+    const tx = sqlite.transaction(() => {
+      for (const t of ["chapters", "series_likes", "comments", "bookmarks", "history", "reading_list_items"]) sqlite.prepare(`DELETE FROM ${t} WHERE series_id = ?`).run(seriesId);
+      sqlite.prepare(`DELETE FROM follows WHERE target_type = 'series' AND target_id = ?`).run(seriesId);
+      sqlite.prepare(`DELETE FROM series WHERE id = ?`).run(seriesId);
+    });
+    tx();
+    return chapterIds;
+  },
+  addChapter(seriesId: number, d: { title: string; pages: string[]; number?: number }) {
+    const max = (sqlite.prepare(`SELECT COALESCE(MAX(number), 0) AS m FROM chapters WHERE series_id = ?`).get(seriesId) as any).m;
+    const number = d.number && !sqlite.prepare(`SELECT 1 FROM chapters WHERE series_id = ? AND number = ?`).get(seriesId, d.number) ? d.number : max + 1;
+    const r = sqlite.prepare(`INSERT INTO chapters (series_id, number, title, pages, created_at) VALUES (?,?,?,?,?)`).run(seriesId, number, d.title, JSON.stringify(d.pages), Date.now());
+    return { id: Number(r.lastInsertRowid), number };
+  },
+  chapterOwned(userId: number, chapterId: number) {
+    return sqlite.prepare(`SELECT c.* FROM chapters c JOIN series s ON s.id = c.series_id WHERE c.id = ? AND s.creator_id = ?`).get(chapterId, userId) as any;
+  },
+  updateChapter(chapterId: number, d: { title?: string; pages?: string[] }) {
+    if (d.title !== undefined) sqlite.prepare(`UPDATE chapters SET title = ? WHERE id = ?`).run(d.title, chapterId);
+    if (d.pages !== undefined) sqlite.prepare(`UPDATE chapters SET pages = ? WHERE id = ?`).run(JSON.stringify(d.pages), chapterId);
+  },
+  deleteChapter(chapterId: number) {
+    for (const t of ["bookmarks"]) sqlite.prepare(`DELETE FROM ${t} WHERE chapter_id = ?`).run(chapterId);
+    sqlite.prepare(`UPDATE history SET chapter_id = NULL WHERE chapter_id = ?`).run(chapterId);
+    sqlite.prepare(`DELETE FROM chapters WHERE id = ?`).run(chapterId);
+  },
+};

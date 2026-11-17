@@ -1,7 +1,8 @@
+import { API_BASE } from "@/lib/queryClient";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star } from "lucide-react";
+import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { apiRequest, queryClient, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
 import type { PublicUser, SeriesCard } from "@shared/schema";
 
-const API_ASSET = (p: string) => (p.startsWith("/") ? `.${p}` : p);
+const API_ASSET = (p: string) => (p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/") ? `.${p}` : p);
 export const asset = API_ASSET;
 
 // ---------- Avatar ----------
@@ -244,6 +245,9 @@ export function TopBar() {
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
+          <Link href="/studio" data-testid="link-top-studio" className={`mr-1 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition md:flex ${loc.startsWith("/studio") ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"}`}>
+            <PenTool className="h-3.5 w-3.5" />Studio
+          </Link>
           <ThemeSwitch />
           <Link href="/profile" aria-label="Profile" data-testid="button-profile"
             className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground transition hover:text-foreground">
@@ -309,7 +313,7 @@ export function RankRow({ s, rank, score, max, unit = "likes" }: { s: SeriesCard
         <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{s.title}</h3>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <TypeBadge type={s.type} />
-          <span className="flex items-center gap-0.5"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>
+          {s.rating > 0 && <span className="flex items-center gap-0.5"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>}
           {score !== undefined && <span className="tabular-nums">{compact(score)} {unit}</span>}
         </div>
         {pct !== null ? (

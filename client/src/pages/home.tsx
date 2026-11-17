@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
-import { Flame, Star, TrendingUp, Clock, Trophy, Sparkles, Heart, BookOpen, Play, ShieldCheck, Compass } from "lucide-react";
+import { Flame, Star, TrendingUp, Clock, Trophy, Sparkles, Heart, BookOpen, Play, ShieldCheck, Compass, PenTool, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp, TYPE_LABEL, compact } from "@/lib/app-context";
-import { asset } from "@/components/shared";
+import { asset, SeriesPoster } from "@/components/shared";
 import { WorldRail, STATUS_LABEL } from "@/components/world";
 import type { WorldHome, WorldCard, WorldShelfItem } from "@shared/world";
 import type { SeriesCard } from "@shared/schema";
@@ -127,6 +127,29 @@ function FreeOnSalt({ items }: { items: SeriesCard[] }) {
   );
 }
 
+function CreatorOriginals({ items }: { items: SeriesCard[] }) {
+  const { setOpenSeries } = useApp();
+  const list = items.filter((s) => s.slug !== "pepper-and-carrot");
+  return (
+    <section>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div>
+          <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary"><PenTool className="h-3.5 w-3.5" />Creator originals</p>
+          <h2 className="font-display text-xl font-semibold sm:text-2xl">Published on MANGASALT</h2>
+        </div>
+        <Link href="/studio" className="text-sm font-medium text-primary" data-testid="link-home-studio">Publish yours</Link>
+      </div>
+      <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:gap-4 sm:px-6">
+        <Link href="/studio/new" className="group flex aspect-[2/3] w-32 shrink-0 snap-start flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-card p-3 text-center transition hover:border-primary sm:w-40">
+          <motion.span animate={{ y: [0, -6, 0] }} transition={{ duration: 2.4, repeat: Infinity }} className="grid h-11 w-11 place-items-center rounded-full bg-primary/15 text-primary shadow-[0_0_30px_hsl(var(--primary)/0.35)]"><Plus className="h-5 w-5" /></motion.span>
+          <span className="text-sm font-semibold">Publish your manga</span><span className="text-[11px] text-muted-foreground">Free for every creator</span>
+        </Link>
+        {list.map((s, k) => <div key={s.id} className="w-32 shrink-0 snap-start sm:w-40"><SeriesPoster s={s} index={k} onOpen={setOpenSeries} /></div>)}
+      </div>
+    </section>
+  );
+}
+
 function GenreCloud() {
   const { data } = useQuery<string[]>({ queryKey: ["/api/world/genres"] });
   return (
@@ -177,7 +200,8 @@ export default function Home() {
         {user && mine.data?.reading.length ? <ContinueReading items={mine.data.reading} /> : null}
         <WorldRail kicker="Right now" icon={Flame} title="Trending worldwide" items={data?.trending} loading={isLoading} ranked action={<Link href="/trending" className="text-sm font-medium text-primary">Charts</Link>} />
         <WorldRail kicker="Korea" icon={Sparkles} title="Popular manhwa" items={data?.manhwa} loading={isLoading} action={<Link href="/search/type/manhwa" className="text-sm font-medium text-primary">All</Link>} />
-        <FreeOnSalt items={local.data ?? []} />
+        <FreeOnSalt items={(local.data ?? []).filter((s) => s.slug === "pepper-and-carrot")} />
+        <CreatorOriginals items={local.data ?? []} />
         <WorldRail kicker="Japan" icon={BookOpen} title="Popular manga" items={data?.manga} loading={isLoading} action={<Link href="/search/type/manga" className="text-sm font-medium text-primary">All</Link>} />
         <WorldRail kicker="China" icon={Sparkles} title="Popular manhua" items={data?.manhua} loading={isLoading} action={<Link href="/search/type/manhua" className="text-sm font-medium text-primary">All</Link>} />
         <WorldRail kicker="All time" icon={Trophy} title="Top rated" items={data?.top} loading={isLoading} />

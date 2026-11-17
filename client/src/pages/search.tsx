@@ -39,7 +39,7 @@ export default function Search() {
     },
     getNextPageParam: (last) => (last.hasNext ? last.page + 1 : undefined),
   });
-  const local = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: dq, order: "match" }], enabled: dq.length > 1 });
+  const local = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: dq, order: "match", type, genre: genres[0] ?? "", status: ["ongoing", "completed"].includes(status) ? status : "" }], enabled: dq.length > 1 || genres.length > 0 });
   const items = res.data?.pages.flatMap((p) => p.items) ?? [];
   const total = res.data?.pages[0]?.total ?? 0;
 
@@ -76,7 +76,7 @@ export default function Search() {
           <SlidersHorizontal className="h-4 w-4" />Genres{genres.length ? ` · ${genres.length}` : ""}
         </button>
         <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-status">
-          <option value="">Any status</option><option value="ongoing">Releasing</option><option value="completed">Completed</option><option value="hiatus">On hiatus</option>
+          <option value="">Any status</option><option value="ongoing">Releasing</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option><option value="cancelled">Cancelled</option>
         </select>
         <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-sort">
           <option value="popular">Most popular</option><option value="trending">Trending</option><option value="score">Top rated</option><option value="new">Newest</option><option value="chapters">Most chapters</option><option value="az">A–Z</option>

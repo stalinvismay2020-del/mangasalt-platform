@@ -48,10 +48,10 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
               <h1 className="font-display mt-2 text-3xl font-bold leading-tight sm:text-5xl" data-testid="text-series-title">{s.title}</h1>
               <p className="mt-2 text-sm text-muted-foreground">by <span className="font-medium text-foreground">{s.creator.displayName}</span> · {TYPE_ORIGIN[s.type]} · <span className="capitalize">{s.status}</span> · {s.year}</p>
               <div className="mt-3 flex flex-wrap items-center justify-center gap-4 text-sm sm:justify-start">
-                <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>
+                {s.rating > 0 && <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>}
                 <span className="flex items-center gap-1 text-muted-foreground"><Heart className="h-4 w-4" />{compact(s.likes)}</span>
                 <span className="flex items-center gap-1 text-muted-foreground"><Eye className="h-4 w-4" />{compact(s.views)}</span>
-                <span className="flex items-center gap-1 text-muted-foreground"><BookOpen className="h-4 w-4" />{s.chapterCount} episodes</span>
+                <span className="flex items-center gap-1 text-muted-foreground"><BookOpen className="h-4 w-4" />{s.chapterCount} {s.chapterCount === 1 ? "episode" : "episodes"}</span>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {target ? (

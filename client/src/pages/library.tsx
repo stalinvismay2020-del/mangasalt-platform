@@ -51,6 +51,7 @@ function ShelfPoster({ m, k }: { m: WorldShelfItem; k: number }) {
 
 export default function Library() {
   const { user, openAuth, setOpenSeries } = useApp();
+  const [, navigate] = useLocation();
   const lib = useQuery<LibraryData>({ queryKey: ["/api/me/library", { u: String(user?.id ?? "") }], enabled: !!user });
   const home = useQuery<HomeData>({ queryKey: ["/api/home", { u: String(user?.id ?? "") }] });
   const w = useQuery<{ saved: WorldShelfItem[]; reading: WorldShelfItem[] }>({ queryKey: ["/api/me/world"], enabled: !!user });
@@ -84,11 +85,11 @@ export default function Library() {
         <Head icon={BookOpen} title="MANGASALT Library" />
         <p className="-mt-1 mb-4 text-sm text-muted-foreground">Series hosted in full on MANGASALT by their creators or under an open license.</p>
         <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-5">
-          <motion.button whileHover={{ y: -3 }} onClick={() => (user ? null : openAuth("signup"))} data-testid="button-publish-comic"
+          <motion.button whileHover={{ y: -3 }} onClick={() => navigate("/studio/new")} data-testid="button-publish-comic"
             className="flex aspect-[2/3] flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-border bg-card p-4 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-full bg-primary/15 text-primary shadow-[0_0_30px_hsl(var(--primary)/0.35)]"><Upload className="h-5 w-5" /></span>
             <span className="font-semibold">Publish your comic</span>
-            <span className="text-xs text-muted-foreground">{user ? "Creator Studio opens in the next build" : "Join as a creator to upload chapters"}</span>
+            <span className="text-xs text-muted-foreground">Upload your own manga in Creator Studio</span>
           </motion.button>
           {home.data?.topLiked.map((s, k) => <SeriesPoster key={s.id} s={s} index={k} onOpen={setOpenSeries} />)}
         </div>

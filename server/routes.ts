@@ -1,6 +1,10 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
-import { storage, verifyPassword } from "./storage";
+import { storage, verifyPassword, studio } from "./storage";
+import express from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { randomBytes } from "node:crypto";
 import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
 import { officialChapters } from "./mangadex";
@@ -179,6 +183,102 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
     if (parentId && storage.seriesIdOfComment(parentId) !== sid) return res.status(400).json({ message: "Reply target not found" });
     res.json(storage.addComment((req as any).user.id, sid, body, !!req.body?.spoiler, parentId, null));
+  });
+
+  // ---------- Creator Studio ----------
+  const UP = path.resolve("uploads");
+  fs.mkdirSync(UP, { recursive: true });
+  app.use("/uploads", express.static(UP, { maxAge: "30d", immutable: true, fallthrough: false }));
+  const mine = (uid: number) => new RegExp(`^uploads/u${uid}/[a-f0-9]{24}\\.(webp|jpg|png)$`);
+  const unlinkAll = (paths: string[]) => paths.forEach((p) => { if (/^uploads\/u\d+\/[a-f0-9]{24}\.(webp|jpg|png)$/.test(p)) fs.promises.unlink(path.resolve(p)).catch(() => {}); });
+  const S_TYPES = ["manga", "manhwa", "manhua", "comic"], S_STATUS = ["ongoing", "completed", "hiatus"];
+  const seriesInput = (b: any, partial = false) => {
+    const out: any = {};
+    const err = (m: string) => { throw Object.assign(new Error(m), { status: 400 }); };
+    if (!partial || b.title !== undefined) { const t = String(b.title ?? "").trim(); if (t.length < 2 || t.length > 80) err("Title needs 2 to 80 characters"); out.title = t; }
+    if (!partial || b.type !== undefined) { if (!S_TYPES.includes(b.type)) err("Pick a format"); out.type = b.type; }
+    if (!partial || b.status !== undefined) { out.status = S_STATUS.includes(b.status) ? b.status : "ongoing"; }
+    if (!partial || b.synopsis !== undefined) { const t = String(b.synopsis ?? "").trim(); if (t.length < 10 || t.length > 1500) err("Synopsis needs 10 to 1500 characters"); out.synopsis = t; }
+    if (!partial || b.genres !== undefined) { const g = Array.isArray(b.genres) ? b.genres.map((x: any) => String(x).slice(0, 24)).filter(Boolean).slice(0, 6) : []; if (!g.length) err("Pick at least one genre"); out.genres = g; }
+    return out;
+  };
+  const owner = (req: Request, res: Response) => {
+    const s = studio.owned((req as any).user.id, Number(req.params.id));
+    if (!s) { res.status(404).json({ message: "Series not found" }); return null; }
+    return s;
+  };
+
+  app.post("/api/studio/upload", requireAuth, (req, res) => {
+    const m = typeof req.body?.data === "string" ? req.body.data.match(/^data:image\/(webp|jpeg|png);base64,(.+)$/) : null;
+    if (!m) return res.status(400).json({ message: "Upload a WebP, JPEG or PNG image" });
+    const buf = Buffer.from(m[2], "base64");
+    if (buf.length > 6 * 1024 * 1024) return res.status(413).json({ message: "Each page must be under 6 MB" });
+    const isWebp = buf.subarray(0, 4).toString() === "RIFF" && buf.subarray(8, 12).toString() === "WEBP";
+    const isJpg = buf[0] === 0xff && buf[1] === 0xd8, isPng = buf.subarray(1, 4).toString() === "PNG";
+    const ext = isWebp ? "webp" : isJpg ? "jpg" : isPng ? "png" : null;
+    if (!ext) return res.status(400).json({ message: "That file isn't a valid image" });
+    const uid = (req as any).user.id, dir = path.join(UP, `u${uid}`);
+    fs.mkdirSync(dir, { recursive: true });
+    const name = `${randomBytes(12).toString("hex")}.${ext}`;
+    fs.writeFileSync(path.join(dir, name), buf);
+    res.json({ path: `uploads/u${uid}/${name}` });
+  });
+  app.get("/api/studio", requireAuth, (req, res) => res.json({ series: studio.mySeries((req as any).user.id) }));
+  app.post("/api/studio/become", requireAuth, (req, res) => { studio.becomeCreator((req as any).user.id); res.json({ ok: true }); });
+  app.post("/api/studio/series", requireAuth, wrap(async (req, res) => {
+    const uid = (req as any).user.id;
+    if (req.body?.rights !== true) return res.status(400).json({ message: "Confirm that you own the rights to this work" });
+    const d = seriesInput(req.body);
+    if (!mine(uid).test(String(req.body.cover ?? ""))) return res.status(400).json({ message: "Upload a cover image" });
+    res.json(studio.createSeries(uid, { ...d, cover: req.body.cover }));
+  }));
+  app.get("/api/studio/series/:id", requireAuth, (req, res) => {
+    const s = studio.getSeries((req as any).user.id, Number(req.params.id));
+    s ? res.json(s) : res.status(404).json({ message: "Series not found" });
+  });
+  app.patch("/api/studio/series/:id", requireAuth, wrap(async (req, res) => {
+    const s = owner(req, res); if (!s) return;
+    const d = seriesInput(req.body, true);
+    if (req.body.cover !== undefined) {
+      if (!mine((req as any).user.id).test(String(req.body.cover))) return res.status(400).json({ message: "Upload a cover image" });
+      if (req.body.cover !== s.cover) unlinkAll([s.cover]);
+      d.cover = req.body.cover;
+    }
+    studio.updateSeries(s.id, d);
+    res.json({ ok: true });
+  }));
+  app.delete("/api/studio/series/:id", requireAuth, (req, res) => {
+    const s = owner(req, res); if (!s) return;
+    const full = studio.getSeries((req as any).user.id, s.id)!;
+    studio.deleteSeries(s.id);
+    unlinkAll([s.cover, ...full.chapters.flatMap((c: any) => c.pages)]);
+    res.json({ ok: true });
+  });
+  app.post("/api/studio/series/:id/chapters", requireAuth, (req, res) => {
+    const s = owner(req, res); if (!s) return;
+    const uid = (req as any).user.id;
+    const title = String(req.body?.title ?? "").trim().slice(0, 80);
+    const pages: string[] = Array.isArray(req.body?.pages) ? req.body.pages : [];
+    if (!pages.length || pages.length > 200 || !pages.every((p) => mine(uid).test(String(p)))) return res.status(400).json({ message: "Add between 1 and 200 uploaded pages" });
+    res.json(studio.addChapter(s.id, { title: title || "Untitled", pages, number: Number(req.body?.number) || undefined }));
+  });
+  app.patch("/api/studio/chapters/:cid", requireAuth, (req, res) => {
+    const uid = (req as any).user.id;
+    const c = studio.chapterOwned(uid, Number(req.params.cid));
+    if (!c) return res.status(404).json({ message: "Chapter not found" });
+    const pages = req.body?.pages;
+    if (pages !== undefined && (!Array.isArray(pages) || !pages.length || pages.length > 200 || !pages.every((p: any) => mine(uid).test(String(p))))) return res.status(400).json({ message: "Add between 1 and 200 uploaded pages" });
+    const title = req.body?.title !== undefined ? String(req.body.title).trim().slice(0, 80) || "Untitled" : undefined;
+    if (pages) unlinkAll(JSON.parse(c.pages).filter((p: string) => !pages.includes(p)));
+    studio.updateChapter(c.id, { title, pages });
+    res.json({ ok: true });
+  });
+  app.delete("/api/studio/chapters/:cid", requireAuth, (req, res) => {
+    const c = studio.chapterOwned((req as any).user.id, Number(req.params.cid));
+    if (!c) return res.status(404).json({ message: "Chapter not found" });
+    studio.deleteChapter(c.id);
+    unlinkAll(JSON.parse(c.pages));
+    res.json({ ok: true });
   });
 
   return httpServer;

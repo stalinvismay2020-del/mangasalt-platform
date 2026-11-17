@@ -25,3 +25,15 @@ MANGASALT only hosts content it has the right to host.
 - AniList's API is free for non-commercial use; commercial use needs AniList's permission.
 
 Copyrighted manga is never mirrored, re-hosted or streamed from fan scanlations.
+
+## Creator Studio
+
+Creators publish their own manga, manhwa, manhua or comics at `/#/studio`.
+
+- Create a series: cover, title, format, status, up to 6 genres, synopsis, and a rights confirmation (required).
+- Add chapters: drag-and-drop pages, reorder, remove. Pages are resized to WebP (max 1200px wide) in the browser; long webtoon strips are split automatically.
+- Edit or delete series and chapters at any time; replaced files are removed from disk.
+- Uploads are stored in `uploads/u<userId>/` (gitignored) and only accept PNG, JPEG or WebP up to 6 MB per page.
+- Published series appear on Home ("Creator originals"), in Library, and in Search, with likes, comments, follows and the in-app reader.
+
+Only creator-owned or properly licensed work may be uploaded. Scanlations and images taken from other sites are not allowed.

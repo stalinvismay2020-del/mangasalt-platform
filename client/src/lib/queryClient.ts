@@ -4,7 +4,7 @@ let authToken: string | null = null;
 export function setAuthToken(t: string | null) { authToken = t; }
 function authHeaders(): Record<string, string> { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
 
-const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
+export const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {

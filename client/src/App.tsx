@@ -14,6 +14,7 @@ import SeriesPage from "@/pages/series";
 import Reader from "@/pages/reader";
 import TitlePage from "@/pages/title";
 import OfficialReader from "@/pages/official-reader";
+import { StudioHome, StudioNew, StudioSeries } from "@/pages/studio";
 import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge } from "@/components/shared";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -70,6 +71,9 @@ function AppRouter() {
       <Route path="/search/genre/:genre" component={Search} />
       <Route path="/search/type/:type" component={Search} />
       <Route path="/title/:id" component={TitlePage} />
+      <Route path="/studio" component={StudioHome} />
+      <Route path="/studio/new" component={StudioNew} />
+      <Route path="/studio/series/:id" component={StudioSeries} />
       <Route path="/library" component={Library} />
       <Route path="/profile" component={Profile} />
       <Route path="/series/:slug" component={SeriesPage} />

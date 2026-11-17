@@ -32,7 +32,7 @@ const SORTS: Record<string, string[]> = {
   trending: ["TRENDING_DESC", "POPULARITY_DESC"], popular: ["POPULARITY_DESC"], score: ["SCORE_DESC"], new: ["START_DATE_DESC"], match: ["SEARCH_MATCH"], az: ["TITLE_ENGLISH"],
   chapters: ["CHAPTERS_DESC"],
 };
-const STATUS: Record<string, string> = { ongoing: "RELEASING", completed: "FINISHED", hiatus: "HIATUS", upcoming: "NOT_YET_RELEASED" };
+const STATUS: Record<string, string> = { ongoing: "RELEASING", completed: "FINISHED", hiatus: "HIATUS", upcoming: "NOT_YET_RELEASED", cancelled: "CANCELLED" };
 const COUNTRY: Record<string, string> = { manga: "JP", manhwa: "KR", manhua: "CN" };
 
 export type WorldCard = {
