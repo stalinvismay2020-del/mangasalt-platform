@@ -8,6 +8,9 @@ import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
 import type { WorldDetail, WorldChapters } from "@shared/world";
 
+// Hosts that serve the app inside a strict sandbox (no same-origin) pass that sandbox to embedded readers, which then can't start.
+const SANDBOXED = (() => { try { return typeof window !== "undefined" && !window.localStorage && false; } catch { return true; } })();
+
 export default function OfficialReader() {
   const { id, key: rawKey } = useParams<{ id: string; key: string }>();
   const key = decodeURIComponent(rawKey);
@@ -48,7 +51,13 @@ export default function OfficialReader() {
       </header>
 
       <div className="relative flex-1 overflow-hidden">
-        {cur?.src ? (
+        {cur?.src && SANDBOXED ? (
+          <div className="grid h-full place-items-center p-6 text-center" data-testid="notice-sandboxed">
+            <div className="max-w-sm"><Lock className="mx-auto h-8 w-8 text-primary" /><p className="mt-3 font-semibold">This preview link can't load the publisher's reader</p>
+              <p className="mt-2 text-sm text-white/60">The official reader for Chapter {cur.number} opens inside MANGASALT when the app runs on its own domain. This private preview host blocks it for security.</p>
+              <Button className="mt-4 rounded-full" onClick={() => nav(`/title/${id}`)}>Back to chapters</Button></div>
+          </div>
+        ) : cur?.src ? (
           <>
             <iframe key={cur.key} src={cur.src} title={`${t.data?.title ?? ""} chapter ${cur.number}`} onLoad={() => setLoaded(true)}
               className="h-full w-full border-0" allow="fullscreen" referrerPolicy="strict-origin-when-cross-origin" data-testid="iframe-official-reader" />
