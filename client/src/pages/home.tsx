@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { BookOpen, Flame, Heart, Trophy, Clock, Users, MessageCircle, Star, EyeOff, ChevronLeft, ChevronRight, Sparkles, PenTool, ShieldCheck, Upload, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useApp, TYPE_LABEL, TYPE_ORIGIN, compact, timeAgo } from "@/lib/app-context";
+import { useApp, TYPE_LABEL, TYPE_ORIGIN, compact, timeAgo, rightsLabel } from "@/lib/app-context";
 import { SeriesPoster, PosterSkeleton, LikeButton, SaveButton, TypeBadge, Avatar, FollowButton, RankRow, EmptyBox, asset } from "@/components/shared";
 import { Link } from "wouter";
 import type { HomeData, SeriesCard, DiscussionItem } from "@shared/schema";
@@ -25,7 +25,7 @@ function SectionHead({ icon: Icon, kicker, title, action }: { icon: any; kicker:
 // ---------------- Hero (centered #1 cover) ----------------
 const GLOW: Record<string, string> = {
   "level-zero-hunter": "265 70% 45%", "jade-ascension": "150 55% 38%", "saltblade-ronin": "354 70% 45%", "tidewitch-ledger": "185 60% 40%",
-  "crimson-peony-court": "0 75% 42%", "abyssal-gate-academy": "275 60% 45%", "neon-koi-requiem": "320 70% 50%", "paper-lantern-cafe": "35 85% 50%",
+  "crimson-peony-court": "0 75% 42%", "abyssal-gate-academy": "275 60% 45%", "neon-koi-requiem": "320 70% 50%", "paper-lantern-cafe": "35 85% 50%", "pepper-and-carrot": "28 95% 50%",
 };
 function Hero({ items, onOpen }: { items: SeriesCard[]; onOpen: (s: SeriesCard) => void }) {
   const [i, setI] = useState(0);
@@ -68,7 +68,7 @@ function Hero({ items, onOpen }: { items: SeriesCard[]; onOpen: (s: SeriesCard) 
               <motion.p variants={rise} className="mt-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary"><TrendingUp className="h-3.5 w-3.5" />Top {i + 1} trending · Read on MANGASALT</motion.p>
               <motion.div variants={rise} className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="rounded-md border border-primary/60 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-primary">{TYPE_LABEL[s.type]}</span>
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-500"><ShieldCheck className="h-3.5 w-3.5" />Official EN</span>
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-500"><ShieldCheck className="h-3.5 w-3.5" />{rightsLabel(s)}</span>
               </motion.div>
               <motion.h1 variants={rise} className="mt-3 font-display text-[clamp(2.2rem,1.4rem+3.5vw,4.2rem)] font-bold leading-[0.98] tracking-tight text-balance">{s.title}</motion.h1>
               <motion.p variants={rise} className="mt-2 text-sm text-muted-foreground">by {s.creator.displayName}</motion.p>
@@ -107,7 +107,7 @@ const rise = { hide: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition
 function TrendingSection({ onOpen }: { onOpen: (s: SeriesCard) => void }) {
   const [type, setType] = useState("");
   const { data, isLoading } = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { type, order: "trending" }] });
-  const tabs = [["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]];
+  const tabs = [["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"], ["comic", "Comic"]];
   return (
     <section id="trending" className="scroll-mt-24">
       <SectionHead icon={Flame} kicker="Trending this week" title="What everyone is reading"
@@ -136,7 +136,7 @@ function TrendingPreview({ items }: { items: SeriesCard[] }) {
   return (
     <section id="charts">
       <SectionHead icon={Flame} kicker="Charts" title="Trending" action={<Link href="/trending" className="text-sm font-medium text-primary hover:underline" data-testid="link-see-trending">See all charts</Link>} />
-      <p className="-mt-3 mb-3 text-sm text-muted-foreground">Original titles you can read on MANGASALT. Ranked by reader likes, live.</p>
+      <p className="-mt-3 mb-3 text-sm text-muted-foreground">Titles you can read free on MANGASALT. Ranked by reader likes, live.</p>
       <ol className="grid grid-cols-1 gap-x-8 md:grid-cols-2">{items.slice(0, 6).map((s, k) => <RankRow key={s.id} s={s} rank={k + 1} />)}</ol>
     </section>
   );
@@ -148,7 +148,7 @@ function Rail({ id, icon, kicker, title, items, onOpen, empty }: { id: string; i
     <section id={id} className="scroll-mt-24">
       <SectionHead icon={icon} kicker={kicker} title={title} />
       {items.length === 0 ? empty : (
-        <div className="no-scrollbar -mx-4 flex snap-x gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
+        <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 sm:scroll-px-6 gap-4 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
           {items.map((s, k) => <div key={s.id} className="w-36 shrink-0 snap-start sm:w-44"><SeriesPoster s={s} index={k} onOpen={onOpen} size="sm" /></div>)}
         </div>
       )}
@@ -263,7 +263,7 @@ function Community({ items, onOpenSeries, series }: { items: DiscussionItem[]; o
 
 // ---------------- Stats strip ----------------
 function Stats({ stats }: { stats: HomeData["stats"] }) {
-  const items = [["Original series", stats.series], ["Chapters", stats.chapters], ["Creators", stats.creators], ["Readers", stats.readers]] as const;
+  const items = [["Series", stats.series], ["Chapters", stats.chapters], ["Creators", stats.creators], ["Readers", stats.readers]] as const;
   return (
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
       {items.map(([l, v]) => (

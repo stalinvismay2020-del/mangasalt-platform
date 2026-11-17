@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import type { Server } from "node:http";
 import { storage, verifyPassword } from "./storage";
-import { seedIfEmpty, backfillMeta } from "./seed";
+import { seedIfEmpty, backfillMeta, ensurePepper } from "./seed";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
 function token(req: Request) {
@@ -19,6 +19,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   seedIfEmpty();
   backfillMeta();
+  ensurePepper();
 
   // ---------- auth ----------
   app.post("/api/auth/signup", (req, res) => {
@@ -76,6 +77,55 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const t = req.params.type === "series" ? "series" : req.params.type === "creator" ? "creator" : null;
     if (!t) return res.status(400).json({ message: "Invalid follow target" });
     res.json(storage.toggleFollow((req as any).user.id, t, Number(req.params.id)));
+  });
+
+  // ---------- series page + reader ----------
+  app.get("/api/series/by-slug/:slug", (req, res) => {
+    const d = storage.seriesDetail(String(req.params.slug), me(req)?.id);
+    if (!d) return res.status(404).json({ message: "Series not found" });
+    res.json(d);
+  });
+  app.get("/api/chapters/:id", (req, res) => {
+    const d = storage.chapter(Number(req.params.id), me(req)?.id);
+    if (!d) return res.status(404).json({ message: "Chapter not found" });
+    res.json(d);
+  });
+  app.post("/api/chapters/:id/read", (req, res) => {
+    const u = me(req);
+    if (u) storage.readChapter(u.id, Number(req.params.id));
+    res.json({ ok: true });
+  });
+  app.post("/api/chapters/:id/bookmark", requireAuth, (req, res) => {
+    const page = Math.max(0, Math.min(500, Number(req.body?.page) || 0));
+    const r = storage.toggleBookmark((req as any).user.id, Number(req.params.id), page);
+    if (!r) return res.status(404).json({ message: "Chapter not found" });
+    res.json(r);
+  });
+
+  // ---------- comments ----------
+  app.get("/api/series/:id/comments", (req, res) => {
+    const cid = req.query.chapter ? Number(req.query.chapter) : undefined;
+    res.json(storage.comments(Number(req.params.id), me(req)?.id, cid));
+  });
+  app.post("/api/series/:id/comments", requireAuth, (req, res) => {
+    const id = Number(req.params.id);
+    if (!storage.seriesExists(id)) return res.status(404).json({ message: "Series not found" });
+    const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
+    if (body.length < 1 || body.length > 2000) return res.status(400).json({ message: "Comments need 1 to 2000 characters" });
+    const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
+    if (parentId && storage.seriesIdOfComment(parentId) !== id) return res.status(400).json({ message: "Reply target not found" });
+    res.json(storage.addComment((req as any).user.id, id, body, !!req.body?.spoiler, parentId, req.body?.chapterId ? Number(req.body.chapterId) : null));
+  });
+  app.post("/api/comments/:id/like", requireAuth, (req, res) => {
+    const id = Number(req.params.id);
+    if (!storage.seriesIdOfComment(id)) return res.status(404).json({ message: "Comment not found" });
+    res.json(storage.toggleCommentLike((req as any).user.id, id));
+  });
+  app.post("/api/comments/:id/report", requireAuth, (req, res) => {
+    const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
+    if (reason.length < 3) return res.status(400).json({ message: "Tell us what is wrong" });
+    if (!storage.reportComment((req as any).user.id, Number(req.params.id), reason)) return res.status(404).json({ message: "Comment not found" });
+    res.json({ ok: true });
   });
 
   return httpServer;

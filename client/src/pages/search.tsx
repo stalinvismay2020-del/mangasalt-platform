@@ -30,7 +30,7 @@ export default function Search() {
         {q && <button onClick={() => setQ("")} aria-label="Clear" data-testid="button-clear-search"><X className="h-4 w-4 text-muted-foreground" /></button>}
       </label>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {[["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]].map(([v, l]) => (
+        {[["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"], ["comic", "Comic"]].map(([v, l]) => (
           <button key={v} onClick={() => setType(v)} data-testid={`chip-search-type-${v || "all"}`}
             className={`h-9 rounded-lg border px-3 text-sm font-medium transition ${type === v ? "border-foreground bg-foreground text-background" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>{l}</button>
         ))}

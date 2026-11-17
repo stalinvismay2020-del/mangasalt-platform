@@ -2,7 +2,7 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const SERIES_TYPES = ["manga", "manhwa", "manhua"] as const;
+export const SERIES_TYPES = ["manga", "manhwa", "manhua", "comic"] as const;
 export type SeriesType = (typeof SERIES_TYPES)[number];
 
 export const users = sqliteTable("users", {
@@ -158,6 +158,8 @@ export type SeriesCard = {
   followedByMe: boolean;
   rating: number;
   year: number;
+  readable: boolean;
+  lastChapter?: { id: number; number: number; title: string } | null;
 };
 
 export type CreatorCard = PublicUser & { seriesCount: number; followers: number; totalLikes: number; followedByMe: boolean };
@@ -191,3 +193,14 @@ export type LibraryData = {
   followedCreators: PublicUser[];
   counts: { likes: number; comments: number; read: number };
 };
+
+export type ChapterListItem = { id: number; number: number; title: string; pageCount: number; createdAt: number; read: boolean; thumb: string | null };
+export type SeriesDetail = { series: SeriesCard; chapters: ChapterListItem[]; resume: { id: number; number: number } | null; bookmarks: { chapterId: number; page: number; number: number; title: string }[] };
+export type ChapterData = {
+  chapter: { id: number; number: number; title: string; pages: string[] };
+  series: { id: number; slug: string; title: string; type: string; rights: string; cover: string; creator: PublicUser; chapterCount: number };
+  prev: { id: number; number: number } | null;
+  next: { id: number; number: number } | null;
+  bookmark: number | null;
+};
+export type CommentItem = { id: number; body: string; spoiler: boolean; likes: number; likedByMe: boolean; createdAt: number; user: PublicUser; parentId: number | null; replies: CommentItem[] };

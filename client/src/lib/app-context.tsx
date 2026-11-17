@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { apiRequest, queryClient, setAuthToken } from "./queryClient";
+import { apiRequest, queryClient, setAuthToken, invalidatePrefixes } from "./queryClient";
 import type { PublicUser, SeriesCard } from "@shared/schema";
 
 type Theme = "dark" | "light";
@@ -30,7 +30,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshPersonal = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/home"] });
-    queryClient.invalidateQueries({ queryKey: ["/api/series"] });
+    invalidatePrefixes("/api/series");
     queryClient.invalidateQueries({ queryKey: ["/api/me/library"] });
   };
 
@@ -65,8 +65,12 @@ export function useApp() {
   return c;
 }
 
-export const TYPE_LABEL: Record<string, string> = { manga: "Manga", manhwa: "Manhwa", manhua: "Manhua" };
-export const TYPE_ORIGIN: Record<string, string> = { manga: "Japan", manhwa: "Korea", manhua: "China" };
+export const TYPE_LABEL: Record<string, string> = { manga: "Manga", manhwa: "Manhwa", manhua: "Manhua", comic: "Comic" };
+export const TYPE_ORIGIN: Record<string, string> = { manga: "Japan", manhwa: "Korea", manhua: "China", comic: "Webcomic" };
+export function rightsLabel(s: { rights: string; readable?: boolean }) {
+  if (s.rights === "cc-by-4.0") return "Free · Official EN · CC BY 4.0";
+  return s.readable === false ? "Original · Pages coming soon" : "Original · Official EN";
+}
 
 export function compact(n: number) {
   return n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : String(n);

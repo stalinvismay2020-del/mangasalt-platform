@@ -52,14 +52,15 @@ SELECT s.*, u.id AS u_id, u.username AS u_username, u.display_name AS u_display_
   (SELECT COUNT(*) FROM comments cm WHERE cm.series_id = s.id AND cm.created_at > @since) AS recent_comments,
   EXISTS(SELECT 1 FROM series_likes l WHERE l.series_id = s.id AND l.user_id = @me) AS liked_by_me,
   EXISTS(SELECT 1 FROM reading_list_items ri JOIN reading_lists rl ON rl.id = ri.list_id WHERE ri.series_id = s.id AND rl.user_id = @me AND rl.name = 'Saved') AS saved_by_me,
-  EXISTS(SELECT 1 FROM follows f WHERE f.target_type='series' AND f.target_id = s.id AND f.user_id = @me) AS followed_by_me
+  EXISTS(SELECT 1 FROM follows f WHERE f.target_type='series' AND f.target_id = s.id AND f.user_id = @me) AS followed_by_me,
+  EXISTS(SELECT 1 FROM chapters c WHERE c.series_id = s.id AND c.pages != '[]') AS readable
 FROM series s JOIN users u ON u.id = s.creator_id`;
 
 function toCard(r: any): SeriesCard {
   return {
     id: r.id, slug: r.slug, title: r.title, type: r.type, genres: JSON.parse(r.genres), synopsis: r.synopsis, cover: r.cover,
     status: r.status, views: r.views, rights: r.rights, likes: r.likes, recentLikes: r.recent_likes, chapterCount: r.chapter_count,
-    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year,
+    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year, readable: !!r.readable,
     creator: { id: r.u_id, username: r.u_username, displayName: r.u_display_name, bio: r.u_bio, avatarHue: r.u_avatar_hue, isCreator: r.u_is_creator },
   };
 }
@@ -113,7 +114,7 @@ export class Storage {
       latest: `latest_chapter_at DESC`,
       views: `s.views DESC`,
     }[opts.order ?? "trending"];
-    const sql = `${SERIES_SELECT} ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY ${order} LIMIT @limit`;
+    const sql = `${SERIES_SELECT} ${where.length ? "WHERE " + where.join(" AND ") : ""} ORDER BY ${opts.order === "trending" ? "readable DESC, " : ""}${order} LIMIT @limit`;
     return sqlite.prepare(sql).all(params).map(toCard);
   }
 
@@ -169,7 +170,8 @@ export class Storage {
     if (!ids.length) return [];
     const params = { since: Date.now() - WEEK, me: userId };
     const rows = sqlite.prepare(`${SERIES_SELECT} WHERE s.id IN (${ids.join(",")})`).all(params).map(toCard);
-    return ids.map((id) => rows.find((r) => r.id === id)!).filter(Boolean);
+    const last = sqlite.prepare(`SELECT c.id, c.number, c.title FROM history h JOIN chapters c ON c.id = h.chapter_id WHERE h.user_id = ? AND h.series_id = ? ORDER BY h.viewed_at DESC LIMIT 1`);
+    return ids.map((id) => rows.find((r) => r.id === id)!).filter(Boolean).map((c) => ({ ...c, lastChapter: (last.get(userId, c.id) as any) ?? null }));
   }
   addHistory(userId: number, seriesId: number, chapterId?: number) {
     sqlite.prepare(`INSERT INTO history (user_id, series_id, chapter_id, viewed_at) VALUES (?,?,?,?)`).run(userId, seriesId, chapterId ?? null, Date.now());
@@ -189,7 +191,7 @@ export class Storage {
   home(me?: number): HomeData {
     const trending = this.listSeries({ me, order: "trending", limit: 12 });
     return {
-      featured: this.listSeries({ me, order: "likes", limit: 5 }),
+      featured: this.listSeries({ me, order: "trending", limit: 5 }),
       trending,
       topLiked: this.listSeries({ me, order: "likes", limit: 10 }),
       latest: this.listSeries({ me, order: "latest", limit: 12 }),
@@ -231,6 +233,85 @@ export class Storage {
     for (const r of sqlite.prepare(`SELECT genres FROM series`).all() as any[]) JSON.parse(r.genres).forEach((g: string) => set.add(g));
     return Array.from(set).sort();
   }
+
+  // ---------- series page + reader ----------
+  seriesDetail(slug: string, me?: number) {
+    const r = sqlite.prepare(`${SERIES_SELECT} WHERE s.slug = @slug`).get({ since: Date.now() - WEEK, me: me ?? -1, slug });
+    if (!r) return undefined;
+    const card = toCard(r);
+    const read = new Set(me ? sqlite.prepare(`SELECT DISTINCT chapter_id FROM history WHERE user_id = ? AND series_id = ? AND chapter_id IS NOT NULL`).all(me, card.id).map((x: any) => x.chapter_id) : []);
+    const chapters = sqlite.prepare(`SELECT id, number, title, pages, created_at FROM chapters WHERE series_id = ? ORDER BY number ASC`).all(card.id).map((c: any) => {
+      const pages: string[] = JSON.parse(c.pages);
+      return { id: c.id, number: c.number, title: c.title, pageCount: pages.length, createdAt: c.created_at, read: read.has(c.id), thumb: pages.length ? pages[0].replace(/p\d+\.webp$/, "cover.webp") : null };
+    });
+    const resume: any = me ? sqlite.prepare(`SELECT c.id, c.number FROM history h JOIN chapters c ON c.id = h.chapter_id WHERE h.user_id = ? AND h.series_id = ? ORDER BY h.viewed_at DESC LIMIT 1`).get(me, card.id) : null;
+    const bookmarks = me ? sqlite.prepare(`SELECT b.chapter_id AS chapterId, b.page, c.number, c.title FROM bookmarks b JOIN chapters c ON c.id = b.chapter_id WHERE b.user_id = ? AND b.series_id = ? ORDER BY c.number`).all(me, card.id) as any[] : [];
+    return { series: card, chapters, resume: resume ?? null, bookmarks };
+  }
+  chapter(id: number, me?: number) {
+    const c: any = sqlite.prepare(`SELECT * FROM chapters WHERE id = ?`).get(id);
+    if (!c) return undefined;
+    const s: any = sqlite.prepare(`SELECT s.*, u.username, u.display_name, u.bio, u.avatar_hue, u.is_creator, (SELECT COUNT(*) FROM chapters x WHERE x.series_id = s.id) AS cc FROM series s JOIN users u ON u.id = s.creator_id WHERE s.id = ?`).get(c.series_id);
+    const prev = sqlite.prepare(`SELECT id, number FROM chapters WHERE series_id = ? AND number < ? ORDER BY number DESC LIMIT 1`).get(c.series_id, c.number) as any;
+    const next = sqlite.prepare(`SELECT id, number FROM chapters WHERE series_id = ? AND number > ? ORDER BY number ASC LIMIT 1`).get(c.series_id, c.number) as any;
+    const bm: any = me ? sqlite.prepare(`SELECT page FROM bookmarks WHERE user_id = ? AND chapter_id = ?`).get(me, id) : null;
+    return {
+      chapter: { id: c.id, number: c.number, title: c.title, pages: JSON.parse(c.pages) },
+      series: { id: s.id, slug: s.slug, title: s.title, type: s.type, rights: s.rights, cover: s.cover, chapterCount: s.cc,
+        creator: { id: s.creator_id, username: s.username, displayName: s.display_name, bio: s.bio, avatarHue: s.avatar_hue, isCreator: s.is_creator } },
+      prev: prev ?? null, next: next ?? null, bookmark: bm ? bm.page : null,
+    };
+  }
+  readChapter(userId: number, chapterId: number) {
+    const c: any = sqlite.prepare(`SELECT series_id FROM chapters WHERE id = ?`).get(chapterId);
+    if (c) this.addHistory(userId, c.series_id, chapterId);
+  }
+  toggleBookmark(userId: number, chapterId: number, page: number) {
+    const c: any = sqlite.prepare(`SELECT series_id FROM chapters WHERE id = ?`).get(chapterId);
+    if (!c) return undefined;
+    const ex: any = sqlite.prepare(`SELECT id, page FROM bookmarks WHERE user_id = ? AND chapter_id = ?`).get(userId, chapterId);
+    if (ex && ex.page === page) { sqlite.prepare(`DELETE FROM bookmarks WHERE id = ?`).run(ex.id); return { bookmark: null }; }
+    if (ex) sqlite.prepare(`UPDATE bookmarks SET page = ?, created_at = ? WHERE id = ?`).run(page, Date.now(), ex.id);
+    else sqlite.prepare(`INSERT INTO bookmarks (user_id, series_id, chapter_id, page, created_at) VALUES (?,?,?,?,?)`).run(userId, c.series_id, chapterId, page, Date.now());
+    return { bookmark: page };
+  }
+
+  // ---------- comments ----------
+  comments(seriesId: number, me?: number, chapterId?: number) {
+    const rows = sqlite.prepare(`
+      SELECT c.*, u.username, u.display_name, u.bio, u.avatar_hue, u.is_creator,
+        (SELECT COUNT(*) FROM comment_likes cl WHERE cl.comment_id = c.id) AS likes,
+        EXISTS(SELECT 1 FROM comment_likes cl WHERE cl.comment_id = c.id AND cl.user_id = @me) AS liked
+      FROM comments c JOIN users u ON u.id = c.user_id
+      WHERE c.series_id = @sid AND c.hidden = 0 AND ${chapterId ? "c.chapter_id = @cid" : "1=1"}
+      ORDER BY c.created_at ASC`).all({ me: me ?? -1, sid: seriesId, cid: chapterId ?? null }) as any[];
+    const map = new Map<number, any>();
+    for (const r of rows) map.set(r.id, { id: r.id, body: r.body, spoiler: !!r.spoiler, likes: r.likes, likedByMe: !!r.liked, createdAt: r.created_at, parentId: r.parent_id,
+      user: { id: r.user_id, username: r.username, displayName: r.display_name, bio: r.bio, avatarHue: r.avatar_hue, isCreator: r.is_creator }, replies: [] });
+    const roots: any[] = [];
+    for (const c of Array.from(map.values())) (c.parentId && map.get(c.parentId) ? map.get(c.parentId).replies : roots).push(c);
+    return roots.sort((a, b) => (b.likes * 2 + b.replies.length) - (a.likes * 2 + a.replies.length) || b.createdAt - a.createdAt);
+  }
+  addComment(userId: number, seriesId: number, body: string, spoiler: boolean, parentId?: number | null, chapterId?: number | null) {
+    const id = sqlite.prepare(`INSERT INTO comments (series_id, chapter_id, parent_id, user_id, body, spoiler, created_at) VALUES (?,?,?,?,?,?,?)`)
+      .run(seriesId, chapterId ?? null, parentId ?? null, userId, body, spoiler ? 1 : 0, Date.now()).lastInsertRowid;
+    return { id: Number(id) };
+  }
+  toggleCommentLike(userId: number, commentId: number) {
+    const ex = sqlite.prepare(`SELECT id FROM comment_likes WHERE user_id = ? AND comment_id = ?`).get(userId, commentId);
+    if (ex) sqlite.prepare(`DELETE FROM comment_likes WHERE user_id = ? AND comment_id = ?`).run(userId, commentId);
+    else sqlite.prepare(`INSERT INTO comment_likes (user_id, comment_id) VALUES (?,?)`).run(userId, commentId);
+    return { liked: !ex, likes: (sqlite.prepare(`SELECT COUNT(*) AS n FROM comment_likes WHERE comment_id = ?`).get(commentId) as any).n };
+  }
+  reportComment(userId: number, commentId: number, reason: string) {
+    if (!sqlite.prepare(`SELECT 1 FROM comments WHERE id = ?`).get(commentId)) return false;
+    if (!sqlite.prepare(`SELECT 1 FROM reports WHERE user_id = ? AND comment_id = ?`).get(userId, commentId))
+      sqlite.prepare(`INSERT INTO reports (comment_id, user_id, reason, created_at) VALUES (?,?,?,?)`).run(commentId, userId, reason, Date.now());
+    const n = (sqlite.prepare(`SELECT COUNT(*) AS n FROM reports WHERE comment_id = ?`).get(commentId) as any).n;
+    if (n >= 3) sqlite.prepare(`UPDATE comments SET hidden = 1 WHERE id = ?`).run(commentId);
+    return true;
+  }
+  seriesIdOfComment(id: number) { return (sqlite.prepare(`SELECT series_id FROM comments WHERE id = ?`).get(id) as any)?.series_id as number | undefined; }
 
   isEmpty() { return (sqlite.prepare(`SELECT COUNT(*) AS n FROM series`).get() as any).n === 0; }
   raw() { return sqlite; }

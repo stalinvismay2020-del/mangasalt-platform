@@ -7,8 +7,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useApp, TYPE_LABEL, compact } from "@/lib/app-context";
+import { apiRequest, queryClient, invalidatePrefixes } from "@/lib/queryClient";
+import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
 import type { PublicUser, SeriesCard } from "@shared/schema";
 
 const API_ASSET = (p: string) => (p.startsWith("/") ? `.${p}` : p);
@@ -30,7 +30,7 @@ export function Avatar({ user, size = 32 }: { user: Pick<PublicUser, "displayNam
 
 // ---------- Type badge ----------
 export function TypeBadge({ type, className = "" }: { type: string; className?: string }) {
-  const tone = type === "manga" ? "bg-primary text-primary-foreground" : type === "manhwa" ? "bg-[hsl(258_70%_58%)] text-white" : "bg-[hsl(158_60%_36%)] text-white";
+  const tone = type === "manga" ? "bg-primary text-primary-foreground" : type === "manhwa" ? "bg-[hsl(258_70%_58%)] text-white" : type === "comic" ? "bg-[hsl(200_80%_44%)] text-white" : "bg-[hsl(158_60%_36%)] text-white";
   return <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${tone} ${className}`}>{TYPE_LABEL[type]}</span>;
 }
 
@@ -42,7 +42,7 @@ export function useSeriesLike() {
     mutationFn: async (id: number) => (await apiRequest("POST", `/api/series/${id}/like`)).json() as Promise<{ liked: boolean; likes: number }>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/home"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/series"] });
+      invalidatePrefixes("/api/series");
       queryClient.invalidateQueries({ queryKey: ["/api/me/library"] });
     },
     onError: (e: Error) => toast({ title: "Couldn't update like", description: e.message }),
@@ -128,7 +128,7 @@ export function FollowButton({ type, id, following, size = "sm" }: { type: "seri
   useEffect(() => setState(following), [following]);
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/follow/${type}/${id}`)).json(),
-    onSuccess: (d: any) => { setState(d.following); ["/api/home", "/api/series", "/api/me/library"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })); },
+    onSuccess: (d: any) => { setState(d.following); invalidatePrefixes("/api/home", "/api/series", "/api/me/library"); },
   });
   return (
     <Button size={size} variant={state ? "secondary" : "outline"} className="gap-1.5 rounded-full" data-testid={`button-follow-${type}-${id}`}
@@ -141,45 +141,10 @@ export function FollowButton({ type, id, following, size = "sm" }: { type: "seri
 
 // ---------- Quick view ----------
 export function QuickView() {
-  const { user, openSeries: s, setOpenSeries } = useApp();
-  const onClose = () => setOpenSeries(null);
-  const live = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: s?.title ?? "" }], enabled: !!s });
-  const current = live.data?.find((x) => x.id === s?.id) ?? s;
-  useEffect(() => {
-    if (s && user) apiRequest("POST", `/api/series/${s.id}/view`).then(() => { queryClient.invalidateQueries({ queryKey: ["/api/home"] }); queryClient.invalidateQueries({ queryKey: ["/api/me/library"] }); });
-  }, [s?.id]);
-  return (
-    <Dialog open={!!s} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto border-white/10 p-0 sm:rounded-2xl">
-        {current && (
-          <div className="grid sm:grid-cols-[240px_1fr]">
-            <div className="relative h-56 sm:h-auto">
-              <img src={asset(current.cover)} alt="" className="h-full w-full object-cover object-[center_20%]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent sm:bg-gradient-to-r sm:from-transparent sm:to-background/40" />
-            </div>
-            <div className="flex flex-col gap-4 p-6">
-              <div className="flex flex-wrap items-center gap-2"><TypeBadge type={current.type} />
-                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Original · Official EN</span>
-              </div>
-              <div>
-                <DialogTitle className="font-display text-2xl font-semibold leading-tight">{current.title}</DialogTitle>
-                <p className="mt-1 text-sm text-muted-foreground">by <span className="text-foreground">{current.creator.displayName}</span> · {current.chapterCount} chapters · <span className="capitalize">{current.status}</span></p>
-                <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{current.rating.toFixed(1)} · {current.year}</p>
-              </div>
-              <DialogDescription className="text-[15px] leading-relaxed text-foreground/80">{current.synopsis}</DialogDescription>
-              <div className="flex flex-wrap gap-1.5">{current.genres.map((g) => <span key={g} className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground">{g}</span>)}</div>
-              <div className="mt-auto flex flex-wrap items-center gap-2 pt-2">
-                <Button className="gap-2 rounded-full" data-testid="button-read-first" onClick={() => toastSoon()}><BookOpen className="h-4 w-4" /> Read Chapter 1</Button>
-                <LikeButton s={current} />
-                <SaveButton s={current} />
-                <FollowButton type="series" id={current.id} following={current.followedByMe} size="default" />
-              </div>
-            </div>
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
+  const { openSeries: s, setOpenSeries } = useApp();
+  const [, navigate] = useLocation();
+  useEffect(() => { if (s) { navigate(`/series/${s.slug}`); setOpenSeries(null); } }, [s?.id]);
+  return null;
 }
 let toastSoon = () => {};
 export function ToastBridge() {
@@ -233,7 +198,7 @@ export function SaveButton({ s, compact: small = false }: { s: SeriesCard; compa
   useEffect(() => setSaved(s.savedByMe), [s.savedByMe]);
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/series/${s.id}/save`)).json(),
-    onSuccess: (d: any) => { setSaved(d.saved); ["/api/me/library", "/api/series", "/api/home"].forEach((k) => queryClient.invalidateQueries({ queryKey: [k] })); },
+    onSuccess: (d: any) => { setSaved(d.saved); invalidatePrefixes("/api/me/library", "/api/series", "/api/home"); },
   });
   const onClick = (e: React.MouseEvent) => { e.stopPropagation(); user ? m.mutate() : openAuth("login"); };
   if (small) return (
@@ -333,20 +298,34 @@ export function EmptyBox({ children }: { children: ReactNode }) {
   return <div className="rounded-2xl border border-border bg-card/60 px-5 py-6 text-sm text-muted-foreground">{children}</div>;
 }
 
-export function RankRow({ s, rank }: { s: SeriesCard; rank: number }) {
+export function RankRow({ s, rank, score, max, unit = "likes" }: { s: SeriesCard; rank: number; score?: number; max?: number; unit?: string }) {
   const { setOpenSeries } = useApp();
+  const pct = score !== undefined && max ? Math.max(6, (score / max) * 100) : null;
   return (
-    <motion.li layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ type: "spring", stiffness: 300, damping: 30, delay: Math.min(rank, 10) * 0.03 }}
-      className="group flex min-w-0 cursor-pointer items-center gap-3 border-b border-border/70 py-3 sm:gap-4" onClick={() => setOpenSeries(s)} data-testid={`row-rank-${s.id}`}>
-      <span className={`rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums sm:w-10 sm:text-4xl ${rank <= 3 ? "top" : ""}`}>{rank}</span>
-      <img src={asset(s.cover)} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover ring-1 ring-white/5 transition group-hover:scale-105" loading="lazy" />
+    <motion.li layout initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
+      transition={{ layout: { type: "spring", stiffness: 380, damping: 34 }, default: { type: "spring", stiffness: 300, damping: 28, delay: Math.min(rank, 10) * 0.045 } }}
+      whileHover={{ x: 4 }} whileTap={{ scale: 0.985 }}
+      className="group relative flex min-w-0 cursor-pointer items-center gap-3 border-b border-border/70 py-3 sm:gap-4" onClick={() => setOpenSeries(s)} data-testid={`row-rank-${s.id}`}>
+      <motion.span key={rank} initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        className={`rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums sm:w-10 sm:text-4xl ${rank <= 3 ? "top" : ""}`}>{rank}</motion.span>
+      <div className="relative shrink-0">
+        <img src={asset(s.cover)} alt="" className="h-[72px] w-12 rounded-md object-cover ring-1 ring-white/5 transition duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-primary/30" loading="lazy" />
+        {rank === 1 && <motion.span className="absolute -inset-1 -z-10 rounded-lg bg-primary/40 blur-md" animate={{ opacity: [0.35, 0.9, 0.35] }} transition={{ duration: 2.4, repeat: Infinity }} />}
+      </div>
       <div className="min-w-0 flex-1">
-        <h3 className="truncate font-semibold group-hover:text-primary">{s.title}</h3>
+        <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{s.title}</h3>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <TypeBadge type={s.type} />
           <span className="flex items-center gap-0.5"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>
+          {score !== undefined && <span className="tabular-nums">{compact(score)} {unit}</span>}
         </div>
-        <p className="mt-1 flex items-center gap-1 text-xs text-emerald-500"><ShieldCheck className="h-3.5 w-3.5" />Official EN · Original</p>
+        {pct !== null ? (
+          <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
+            <motion.div className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 + Math.min(rank, 10) * 0.05 }} />
+          </div>
+        ) : (
+          <p className={`mt-1 flex items-center gap-1 truncate text-xs ${s.readable ? "text-emerald-500" : "text-muted-foreground"}`}><ShieldCheck className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{rightsLabel(s)}</span></p>
+        )}
       </div>
       <div onClick={(e) => e.stopPropagation()}><LikeButton s={s} /></div>
     </motion.li>

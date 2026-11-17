@@ -1,0 +1,715 @@
+[
+{
+"n": 1,
+"slug": "ep01_Potion-of-Flight",
+"title": "The Potion of Flight",
+"pages": [
+"comics/pepper/ep01/p00.webp",
+"comics/pepper/ep01/p01.webp",
+"comics/pepper/ep01/p02.webp",
+"comics/pepper/ep01/p03.webp"
+],
+"cover": "comics/pepper/ep01/cover.webp",
+"date": "2014-05-10"
+},
+{
+"n": 2,
+"slug": "ep02_Rainbow-potions",
+"title": "Rainbow Potions",
+"pages": [
+"comics/pepper/ep02/p00.webp",
+"comics/pepper/ep02/p01.webp",
+"comics/pepper/ep02/p02.webp",
+"comics/pepper/ep02/p03.webp",
+"comics/pepper/ep02/p04.webp",
+"comics/pepper/ep02/p05.webp",
+"comics/pepper/ep02/p06.webp"
+],
+"cover": "comics/pepper/ep02/cover.webp",
+"date": "2014-07-25"
+},
+{
+"n": 3,
+"slug": "ep03_The-secret-ingredients",
+"title": "The Secret Ingredients",
+"pages": [
+"comics/pepper/ep03/p00.webp",
+"comics/pepper/ep03/p01.webp",
+"comics/pepper/ep03/p02.webp",
+"comics/pepper/ep03/p03.webp",
+"comics/pepper/ep03/p04.webp",
+"comics/pepper/ep03/p05.webp",
+"comics/pepper/ep03/p06.webp",
+"comics/pepper/ep03/p07.webp",
+"comics/pepper/ep03/p08.webp"
+],
+"cover": "comics/pepper/ep03/cover.webp",
+"date": "2014-10-03"
+},
+{
+"n": 4,
+"slug": "ep04_Stroke-of-genius",
+"title": "Stroke of Genius",
+"pages": [
+"comics/pepper/ep04/p00.webp",
+"comics/pepper/ep04/p01.webp",
+"comics/pepper/ep04/p02.webp",
+"comics/pepper/ep04/p03.webp",
+"comics/pepper/ep04/p04.webp",
+"comics/pepper/ep04/p05.webp",
+"comics/pepper/ep04/p06.webp",
+"comics/pepper/ep04/p07.webp",
+"comics/pepper/ep04/p08.webp"
+],
+"cover": "comics/pepper/ep04/cover.webp",
+"date": "2014-11-21"
+},
+{
+"n": 5,
+"slug": "ep05_Special-holiday-episode",
+"title": "Special Holiday Episode",
+"pages": [
+"comics/pepper/ep05/p00.webp",
+"comics/pepper/ep05/p01.webp",
+"comics/pepper/ep05/p02.webp",
+"comics/pepper/ep05/p03.webp",
+"comics/pepper/ep05/p04.webp",
+"comics/pepper/ep05/p05.webp"
+],
+"cover": "comics/pepper/ep05/cover.webp",
+"date": "2014-12-19"
+},
+{
+"n": 6,
+"slug": "ep06_The-Potion-Contest",
+"title": "The Potion Contest",
+"pages": [
+"comics/pepper/ep06/p00.webp",
+"comics/pepper/ep06/p01.webp",
+"comics/pepper/ep06/p02.webp",
+"comics/pepper/ep06/p03.webp",
+"comics/pepper/ep06/p04.webp",
+"comics/pepper/ep06/p05.webp",
+"comics/pepper/ep06/p06.webp",
+"comics/pepper/ep06/p07.webp",
+"comics/pepper/ep06/p08.webp",
+"comics/pepper/ep06/p09.webp",
+"comics/pepper/ep06/p10.webp"
+],
+"cover": "comics/pepper/ep06/cover.webp",
+"date": "2015-03-28"
+},
+{
+"n": 7,
+"slug": "ep07_The-Wish",
+"title": "The Wish",
+"pages": [
+"comics/pepper/ep07/p00.webp",
+"comics/pepper/ep07/p01.webp",
+"comics/pepper/ep07/p02.webp",
+"comics/pepper/ep07/p03.webp",
+"comics/pepper/ep07/p04.webp",
+"comics/pepper/ep07/p05.webp",
+"comics/pepper/ep07/p06.webp"
+],
+"cover": "comics/pepper/ep07/cover.webp",
+"date": "2015-04-30"
+},
+{
+"n": 8,
+"slug": "ep08_Pepper-s-Birthday-Party",
+"title": "Pepper's Birthday Party",
+"pages": [
+"comics/pepper/ep08/p00.webp",
+"comics/pepper/ep08/p01.webp",
+"comics/pepper/ep08/p02.webp",
+"comics/pepper/ep08/p03.webp",
+"comics/pepper/ep08/p04.webp",
+"comics/pepper/ep08/p05.webp",
+"comics/pepper/ep08/p06.webp",
+"comics/pepper/ep08/p07.webp"
+],
+"cover": "comics/pepper/ep08/cover.webp",
+"date": "2015-06-28"
+},
+{
+"n": 9,
+"slug": "ep09_The-Remedy",
+"title": "The Remedy",
+"pages": [
+"comics/pepper/ep09/p00.webp",
+"comics/pepper/ep09/p01.webp",
+"comics/pepper/ep09/p02.webp",
+"comics/pepper/ep09/p03.webp",
+"comics/pepper/ep09/p04.webp",
+"comics/pepper/ep09/p05.webp",
+"comics/pepper/ep09/p06.webp",
+"comics/pepper/ep09/p07.webp",
+"comics/pepper/ep09/p08.webp"
+],
+"cover": "comics/pepper/ep09/cover.webp",
+"date": "2015-07-31"
+},
+{
+"n": 10,
+"slug": "ep10_Summer-Special",
+"title": "Summer Special",
+"pages": [
+"comics/pepper/ep10/p00.webp",
+"comics/pepper/ep10/p01.webp",
+"comics/pepper/ep10/p02.webp",
+"comics/pepper/ep10/p03.webp",
+"comics/pepper/ep10/p04.webp",
+"comics/pepper/ep10/p05.webp",
+"comics/pepper/ep10/p06.webp"
+],
+"cover": "comics/pepper/ep10/cover.webp",
+"date": "2015-08-29"
+},
+{
+"n": 11,
+"slug": "ep11_The-Witches-of-Chaosah",
+"title": "The Witches of Chaosah",
+"pages": [
+"comics/pepper/ep11/p00.webp",
+"comics/pepper/ep11/p01.webp",
+"comics/pepper/ep11/p02.webp",
+"comics/pepper/ep11/p03.webp",
+"comics/pepper/ep11/p04.webp",
+"comics/pepper/ep11/p05.webp",
+"comics/pepper/ep11/p06.webp",
+"comics/pepper/ep11/p07.webp"
+],
+"cover": "comics/pepper/ep11/cover.webp",
+"date": "2015-09-30"
+},
+{
+"n": 12,
+"slug": "ep12_Autumn-Clearout",
+"title": "Autumn Clearout",
+"pages": [
+"comics/pepper/ep12/p00.webp",
+"comics/pepper/ep12/p01.webp",
+"comics/pepper/ep12/p02.webp",
+"comics/pepper/ep12/p03.webp",
+"comics/pepper/ep12/p04.webp",
+"comics/pepper/ep12/p05.webp",
+"comics/pepper/ep12/p06.webp",
+"comics/pepper/ep12/p07.webp",
+"comics/pepper/ep12/p08.webp"
+],
+"cover": "comics/pepper/ep12/cover.webp",
+"date": "2015-10-31"
+},
+{
+"n": 13,
+"slug": "ep13_The-Pyjama-Party",
+"title": "The Pyjama Party",
+"pages": [
+"comics/pepper/ep13/p00.webp",
+"comics/pepper/ep13/p01.webp",
+"comics/pepper/ep13/p02.webp",
+"comics/pepper/ep13/p03.webp",
+"comics/pepper/ep13/p04.webp",
+"comics/pepper/ep13/p05.webp",
+"comics/pepper/ep13/p06.webp",
+"comics/pepper/ep13/p07.webp"
+],
+"cover": "comics/pepper/ep13/cover.webp",
+"date": "2015-12-08"
+},
+{
+"n": 14,
+"slug": "ep14_The-Dragon-s-Tooth",
+"title": "The Dragon's Tooth",
+"pages": [
+"comics/pepper/ep14/p00.webp",
+"comics/pepper/ep14/p01.webp",
+"comics/pepper/ep14/p02.webp",
+"comics/pepper/ep14/p03.webp",
+"comics/pepper/ep14/p04.webp",
+"comics/pepper/ep14/p05.webp",
+"comics/pepper/ep14/p06.webp",
+"comics/pepper/ep14/p07.webp"
+],
+"cover": "comics/pepper/ep14/cover.webp",
+"date": "2016-01-29"
+},
+{
+"n": 15,
+"slug": "ep15_The-Crystal-Ball",
+"title": "The Crystal Ball",
+"pages": [
+"comics/pepper/ep15/p00.webp",
+"comics/pepper/ep15/p01.webp",
+"comics/pepper/ep15/p02.webp",
+"comics/pepper/ep15/p03.webp",
+"comics/pepper/ep15/p04.webp",
+"comics/pepper/ep15/p05.webp",
+"comics/pepper/ep15/p06.webp",
+"comics/pepper/ep15/p07.webp",
+"comics/pepper/ep15/p08.webp",
+"comics/pepper/ep15/p09.webp"
+],
+"cover": "comics/pepper/ep15/cover.webp",
+"date": "2016-03-25"
+},
+{
+"n": 16,
+"slug": "ep16_The-Sage-of-the-Mountain",
+"title": "The Sage of the Mountain",
+"pages": [
+"comics/pepper/ep16/p00.webp",
+"comics/pepper/ep16/p01.webp",
+"comics/pepper/ep16/p02.webp",
+"comics/pepper/ep16/p03.webp",
+"comics/pepper/ep16/p04.webp",
+"comics/pepper/ep16/p05.webp",
+"comics/pepper/ep16/p06.webp",
+"comics/pepper/ep16/p07.webp"
+],
+"cover": "comics/pepper/ep16/cover.webp",
+"date": "2016-04-30"
+},
+{
+"n": 17,
+"slug": "ep17_A-Fresh-Start",
+"title": "A Fresh Start",
+"pages": [
+"comics/pepper/ep17/p00.webp",
+"comics/pepper/ep17/p01.webp",
+"comics/pepper/ep17/p02.webp",
+"comics/pepper/ep17/p03.webp",
+"comics/pepper/ep17/p04.webp",
+"comics/pepper/ep17/p05.webp",
+"comics/pepper/ep17/p06.webp",
+"comics/pepper/ep17/p07.webp",
+"comics/pepper/ep17/p08.webp"
+],
+"cover": "comics/pepper/ep17/cover.webp",
+"date": "2016-06-30"
+},
+{
+"n": 18,
+"slug": "ep18_The-Encounter",
+"title": "The Encounter",
+"pages": [
+"comics/pepper/ep18/p00.webp",
+"comics/pepper/ep18/p01.webp",
+"comics/pepper/ep18/p02.webp",
+"comics/pepper/ep18/p03.webp",
+"comics/pepper/ep18/p04.webp",
+"comics/pepper/ep18/p05.webp",
+"comics/pepper/ep18/p06.webp",
+"comics/pepper/ep18/p07.webp",
+"comics/pepper/ep18/p08.webp"
+],
+"cover": "comics/pepper/ep18/cover.webp",
+"date": "2016-08-05"
+},
+{
+"n": 19,
+"slug": "ep19_Pollution",
+"title": "Pollution",
+"pages": [
+"comics/pepper/ep19/p00.webp",
+"comics/pepper/ep19/p01.webp",
+"comics/pepper/ep19/p02.webp",
+"comics/pepper/ep19/p03.webp",
+"comics/pepper/ep19/p04.webp",
+"comics/pepper/ep19/p05.webp",
+"comics/pepper/ep19/p06.webp",
+"comics/pepper/ep19/p07.webp",
+"comics/pepper/ep19/p08.webp"
+],
+"cover": "comics/pepper/ep19/cover.webp",
+"date": "2016-10-26"
+},
+{
+"n": 20,
+"slug": "ep20_The-Picnic",
+"title": "The Picnic",
+"pages": [
+"comics/pepper/ep20/p00.webp",
+"comics/pepper/ep20/p01.webp",
+"comics/pepper/ep20/p02.webp",
+"comics/pepper/ep20/p03.webp",
+"comics/pepper/ep20/p04.webp",
+"comics/pepper/ep20/p05.webp",
+"comics/pepper/ep20/p06.webp",
+"comics/pepper/ep20/p07.webp"
+],
+"cover": "comics/pepper/ep20/cover.webp",
+"date": "2016-12-17"
+},
+{
+"n": 21,
+"slug": "ep21_The-Magic-Contest",
+"title": "The Magic Contest",
+"pages": [
+"comics/pepper/ep21/p00.webp",
+"comics/pepper/ep21/p01.webp",
+"comics/pepper/ep21/p02.webp",
+"comics/pepper/ep21/p03.webp",
+"comics/pepper/ep21/p04.webp",
+"comics/pepper/ep21/p05.webp",
+"comics/pepper/ep21/p06.webp",
+"comics/pepper/ep21/p07.webp",
+"comics/pepper/ep21/p08.webp"
+],
+"cover": "comics/pepper/ep21/cover.webp",
+"date": "2017-02-23"
+},
+{
+"n": 22,
+"slug": "ep22_The-Voting-System",
+"title": "The Voting System",
+"pages": [
+"comics/pepper/ep22/p00.webp",
+"comics/pepper/ep22/p01.webp",
+"comics/pepper/ep22/p02.webp",
+"comics/pepper/ep22/p03.webp",
+"comics/pepper/ep22/p04.webp",
+"comics/pepper/ep22/p05.webp",
+"comics/pepper/ep22/p06.webp",
+"comics/pepper/ep22/p07.webp",
+"comics/pepper/ep22/p08.webp",
+"comics/pepper/ep22/p09.webp",
+"comics/pepper/ep22/p10.webp",
+"comics/pepper/ep22/p11.webp"
+],
+"cover": "comics/pepper/ep22/cover.webp",
+"date": "2017-05-30"
+},
+{
+"n": 23,
+"slug": "ep23_Take-a-Chance",
+"title": "Take a Chance",
+"pages": [
+"comics/pepper/ep23/p00.webp",
+"comics/pepper/ep23/p01.webp",
+"comics/pepper/ep23/p02.webp",
+"comics/pepper/ep23/p03.webp",
+"comics/pepper/ep23/p04.webp",
+"comics/pepper/ep23/p05.webp",
+"comics/pepper/ep23/p06.webp",
+"comics/pepper/ep23/p07.webp",
+"comics/pepper/ep23/p08.webp"
+],
+"cover": "comics/pepper/ep23/cover.webp",
+"date": "2017-08-10"
+},
+{
+"n": 24,
+"slug": "ep24_The-Unity-Tree",
+"title": "The Unity Tree",
+"pages": [
+"comics/pepper/ep24/p00.webp",
+"comics/pepper/ep24/p01.webp",
+"comics/pepper/ep24/p02.webp",
+"comics/pepper/ep24/p03.webp",
+"comics/pepper/ep24/p04.webp",
+"comics/pepper/ep24/p05.webp",
+"comics/pepper/ep24/p06.webp",
+"comics/pepper/ep24/p07.webp",
+"comics/pepper/ep24/p08.webp"
+],
+"cover": "comics/pepper/ep24/cover.webp",
+"date": "2017-12-15"
+},
+{
+"n": 25,
+"slug": "ep25_There-are-no-Shortcuts",
+"title": "There Are No Shortcuts",
+"pages": [
+"comics/pepper/ep25/p00.webp",
+"comics/pepper/ep25/p01.webp",
+"comics/pepper/ep25/p02.webp",
+"comics/pepper/ep25/p03.webp",
+"comics/pepper/ep25/p04.webp",
+"comics/pepper/ep25/p05.webp",
+"comics/pepper/ep25/p06.webp",
+"comics/pepper/ep25/p07.webp",
+"comics/pepper/ep25/p08.webp",
+"comics/pepper/ep25/p09.webp",
+"comics/pepper/ep25/p10.webp"
+],
+"cover": "comics/pepper/ep25/cover.webp",
+"date": "2018-05-17"
+},
+{
+"n": 26,
+"slug": "ep26_Books-Are-Great",
+"title": "Books Are Great",
+"pages": [
+"comics/pepper/ep26/p00.webp",
+"comics/pepper/ep26/p01.webp",
+"comics/pepper/ep26/p02.webp",
+"comics/pepper/ep26/p03.webp",
+"comics/pepper/ep26/p04.webp",
+"comics/pepper/ep26/p05.webp",
+"comics/pepper/ep26/p06.webp",
+"comics/pepper/ep26/p07.webp"
+],
+"cover": "comics/pepper/ep26/cover.webp",
+"date": "2018-07-28"
+},
+{
+"n": 27,
+"slug": "ep27_Coriander-s-Invention",
+"title": "Coriander's Invention",
+"pages": [
+"comics/pepper/ep27/p00.webp",
+"comics/pepper/ep27/p01.webp",
+"comics/pepper/ep27/p02.webp",
+"comics/pepper/ep27/p03.webp",
+"comics/pepper/ep27/p04.webp",
+"comics/pepper/ep27/p05.webp",
+"comics/pepper/ep27/p06.webp",
+"comics/pepper/ep27/p07.webp"
+],
+"cover": "comics/pepper/ep27/cover.webp",
+"date": "2018-10-31"
+},
+{
+"n": 28,
+"slug": "ep28_The-Festivities",
+"title": "The Festivities",
+"pages": [
+"comics/pepper/ep28/p00.webp",
+"comics/pepper/ep28/p01.webp",
+"comics/pepper/ep28/p02.webp",
+"comics/pepper/ep28/p03.webp",
+"comics/pepper/ep28/p04.webp",
+"comics/pepper/ep28/p05.webp",
+"comics/pepper/ep28/p06.webp",
+"comics/pepper/ep28/p07.webp",
+"comics/pepper/ep28/p08.webp",
+"comics/pepper/ep28/p09.webp",
+"comics/pepper/ep28/p10.webp"
+],
+"cover": "comics/pepper/ep28/cover.webp",
+"date": "2019-01-24"
+},
+{
+"n": 29,
+"slug": "ep29_Destroyer-of-Worlds",
+"title": "Destroyer of Worlds",
+"pages": [
+"comics/pepper/ep29/p00.webp",
+"comics/pepper/ep29/p01.webp",
+"comics/pepper/ep29/p02.webp",
+"comics/pepper/ep29/p03.webp",
+"comics/pepper/ep29/p04.webp",
+"comics/pepper/ep29/p05.webp",
+"comics/pepper/ep29/p06.webp",
+"comics/pepper/ep29/p07.webp",
+"comics/pepper/ep29/p08.webp",
+"comics/pepper/ep29/p09.webp"
+],
+"cover": "comics/pepper/ep29/cover.webp",
+"date": "2019-04-25"
+},
+{
+"n": 30,
+"slug": "ep30_Need-a-Hug",
+"title": "Need a Hug",
+"pages": [
+"comics/pepper/ep30/p00.webp",
+"comics/pepper/ep30/p01.webp",
+"comics/pepper/ep30/p02.webp",
+"comics/pepper/ep30/p03.webp",
+"comics/pepper/ep30/p04.webp",
+"comics/pepper/ep30/p05.webp",
+"comics/pepper/ep30/p06.webp",
+"comics/pepper/ep30/p07.webp"
+],
+"cover": "comics/pepper/ep30/cover.webp",
+"date": "2019-09-03"
+},
+{
+"n": 31,
+"slug": "ep31_The-Fight",
+"title": "The Fight",
+"pages": [
+"comics/pepper/ep31/p00.webp",
+"comics/pepper/ep31/p01.webp",
+"comics/pepper/ep31/p02.webp",
+"comics/pepper/ep31/p03.webp",
+"comics/pepper/ep31/p04.webp",
+"comics/pepper/ep31/p05.webp",
+"comics/pepper/ep31/p06.webp",
+"comics/pepper/ep31/p07.webp",
+"comics/pepper/ep31/p08.webp"
+],
+"cover": "comics/pepper/ep31/cover.webp",
+"date": "2019-12-20"
+},
+{
+"n": 32,
+"slug": "ep32_The-Battlefield",
+"title": "The Battlefield",
+"pages": [
+"comics/pepper/ep32/p00.webp",
+"comics/pepper/ep32/p01.webp",
+"comics/pepper/ep32/p02.webp",
+"comics/pepper/ep32/p03.webp",
+"comics/pepper/ep32/p04.webp",
+"comics/pepper/ep32/p05.webp",
+"comics/pepper/ep32/p06.webp",
+"comics/pepper/ep32/p07.webp",
+"comics/pepper/ep32/p08.webp"
+],
+"cover": "comics/pepper/ep32/cover.webp",
+"date": "2020-03-31"
+},
+{
+"n": 33,
+"slug": "ep33_Spell-of-War",
+"title": "Spell of War",
+"pages": [
+"comics/pepper/ep33/p00.webp",
+"comics/pepper/ep33/p01.webp",
+"comics/pepper/ep33/p02.webp",
+"comics/pepper/ep33/p03.webp",
+"comics/pepper/ep33/p04.webp",
+"comics/pepper/ep33/p05.webp",
+"comics/pepper/ep33/p06.webp",
+"comics/pepper/ep33/p07.webp",
+"comics/pepper/ep33/p08.webp",
+"comics/pepper/ep33/p09.webp"
+],
+"cover": "comics/pepper/ep33/cover.webp",
+"date": "2020-06-29"
+},
+{
+"n": 34,
+"slug": "ep34_The-Knighting-of-Shichimi",
+"title": "The Knighting of Shichimi",
+"pages": [
+"comics/pepper/ep34/p00.webp",
+"comics/pepper/ep34/p01.webp",
+"comics/pepper/ep34/p02.webp",
+"comics/pepper/ep34/p03.webp",
+"comics/pepper/ep34/p04.webp",
+"comics/pepper/ep34/p05.webp",
+"comics/pepper/ep34/p06.webp",
+"comics/pepper/ep34/p07.webp",
+"comics/pepper/ep34/p08.webp",
+"comics/pepper/ep34/p09.webp",
+"comics/pepper/ep34/p10.webp",
+"comics/pepper/ep34/p11.webp"
+],
+"cover": "comics/pepper/ep34/cover.webp",
+"date": "2021-03-31"
+},
+{
+"n": 35,
+"slug": "ep35_The-Reflection",
+"title": "The Reflection",
+"pages": [
+"comics/pepper/ep35/p00.webp",
+"comics/pepper/ep35/p01.webp",
+"comics/pepper/ep35/p02.webp",
+"comics/pepper/ep35/p03.webp",
+"comics/pepper/ep35/p04.webp",
+"comics/pepper/ep35/p05.webp",
+"comics/pepper/ep35/p06.webp",
+"comics/pepper/ep35/p07.webp",
+"comics/pepper/ep35/p08.webp",
+"comics/pepper/ep35/p09.webp",
+"comics/pepper/ep35/p10.webp",
+"comics/pepper/ep35/p11.webp",
+"comics/pepper/ep35/p12.webp",
+"comics/pepper/ep35/p13.webp"
+],
+"cover": "comics/pepper/ep35/cover.webp",
+"date": "2021-06-18"
+},
+{
+"n": 36,
+"slug": "ep36_The-Surprise-Attack",
+"title": "The Surprise Attack",
+"pages": [
+"comics/pepper/ep36/p00.webp",
+"comics/pepper/ep36/p01.webp",
+"comics/pepper/ep36/p02.webp",
+"comics/pepper/ep36/p03.webp",
+"comics/pepper/ep36/p04.webp",
+"comics/pepper/ep36/p05.webp",
+"comics/pepper/ep36/p06.webp",
+"comics/pepper/ep36/p07.webp",
+"comics/pepper/ep36/p08.webp",
+"comics/pepper/ep36/p09.webp",
+"comics/pepper/ep36/p10.webp",
+"comics/pepper/ep36/p11.webp",
+"comics/pepper/ep36/p12.webp",
+"comics/pepper/ep36/p13.webp",
+"comics/pepper/ep36/p14.webp",
+"comics/pepper/ep36/p15.webp",
+"comics/pepper/ep36/p16.webp"
+],
+"cover": "comics/pepper/ep36/cover.webp",
+"date": "2021-12-15"
+},
+{
+"n": 37,
+"slug": "ep37_The-Tears-of-the-Phoenix",
+"title": "The Tears of the Phoenix",
+"pages": [
+"comics/pepper/ep37/p00.webp",
+"comics/pepper/ep37/p01.webp",
+"comics/pepper/ep37/p02.webp",
+"comics/pepper/ep37/p03.webp",
+"comics/pepper/ep37/p04.webp",
+"comics/pepper/ep37/p05.webp",
+"comics/pepper/ep37/p06.webp",
+"comics/pepper/ep37/p07.webp",
+"comics/pepper/ep37/p08.webp",
+"comics/pepper/ep37/p09.webp"
+],
+"cover": "comics/pepper/ep37/cover.webp",
+"date": "2022-08-03"
+},
+{
+"n": 38,
+"slug": "ep38_The-Healer",
+"title": "The Healer",
+"pages": [
+"comics/pepper/ep38/p00.webp",
+"comics/pepper/ep38/p01.webp",
+"comics/pepper/ep38/p02.webp",
+"comics/pepper/ep38/p03.webp",
+"comics/pepper/ep38/p04.webp",
+"comics/pepper/ep38/p05.webp",
+"comics/pepper/ep38/p06.webp",
+"comics/pepper/ep38/p07.webp",
+"comics/pepper/ep38/p08.webp",
+"comics/pepper/ep38/p09.webp"
+],
+"cover": "comics/pepper/ep38/cover.webp",
+"date": "2023-04-26"
+},
+{
+"n": 39,
+"slug": "ep39_The-Tavern",
+"title": "The Tavern",
+"pages": [
+"comics/pepper/ep39/p00.webp",
+"comics/pepper/ep39/p01.webp",
+"comics/pepper/ep39/p02.webp",
+"comics/pepper/ep39/p03.webp",
+"comics/pepper/ep39/p04.webp",
+"comics/pepper/ep39/p05.webp",
+"comics/pepper/ep39/p06.webp",
+"comics/pepper/ep39/p07.webp",
+"comics/pepper/ep39/p08.webp",
+"comics/pepper/ep39/p09.webp",
+"comics/pepper/ep39/p10.webp",
+"comics/pepper/ep39/p11.webp",
+"comics/pepper/ep39/p12.webp"
+],
+"cover": "comics/pepper/ep39/cover.webp",
+"date": "2025-11-12"
+}
+]

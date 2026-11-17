@@ -1,3 +1,4 @@
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Clock, Bookmark, BookOpen, Upload, Heart } from "lucide-react";
@@ -12,14 +13,16 @@ function Head({ icon: Icon, title }: { icon: any; title: string }) {
 
 function ContinueCard({ s }: { s: SeriesCard }) {
   const { setOpenSeries } = useApp();
+  const [, navigate] = useLocation();
+  const n = s.lastChapter?.number ?? 0;
   return (
-    <button onClick={() => setOpenSeries(s)} data-testid={`card-continue-${s.id}`}
+    <button onClick={() => (s.lastChapter ? navigate(`/read/${s.lastChapter.id}`) : setOpenSeries(s))} data-testid={`card-continue-${s.id}`}
       className="group flex w-72 shrink-0 snap-start items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40">
       <img src={asset(s.cover)} alt="" className="h-20 w-14 rounded-md object-cover" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold group-hover:text-primary">{s.title}</p>
-        <p className="text-xs text-muted-foreground">Chapter 1 of {s.chapterCount}</p>
-        <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, 100 / s.chapterCount)}%` }} /></div>
+        <p className="truncate text-xs text-muted-foreground">{s.lastChapter ? `Ep. ${n} of ${s.chapterCount} · ${s.lastChapter.title}` : `Not started · ${s.chapterCount} episodes`}</p>
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (n / Math.max(1, s.chapterCount)) * 100)}%` }} /></div>
       </div>
     </button>
   );
@@ -38,7 +41,7 @@ export default function Library() {
         <Head icon={Clock} title="Continue reading" />
         {!user ? <EmptyBox>Sign in to keep your place in every series. <button className="font-medium text-primary hover:underline" onClick={() => openAuth("login")} data-testid="button-library-signin">Sign in</button></EmptyBox>
           : !d?.continueReading.length ? <EmptyBox>Nothing in progress. Open any official chapter below and it will show up here.</EmptyBox>
-          : <div className="no-scrollbar -mx-4 flex snap-x gap-3 overflow-x-auto px-4 sm:-mx-6 sm:px-6">{d.continueReading.map((s) => <ContinueCard key={s.id} s={s} />)}</div>}
+          : <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 sm:scroll-px-6 gap-3 overflow-x-auto px-4 sm:-mx-6 sm:px-6">{d.continueReading.map((s) => <ContinueCard key={s.id} s={s} />)}</div>}
       </section>
 
       <section>

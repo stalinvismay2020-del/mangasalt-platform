@@ -64,3 +64,8 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/** Invalidate every query whose path starts with one of the given prefixes. */
+export function invalidatePrefixes(...prefixes: string[]) {
+  queryClient.invalidateQueries({ predicate: (q) => prefixes.some((p) => String(q.queryKey[0]).startsWith(p)) });
+}
