@@ -1,6 +1,8 @@
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Moon, Sun, Heart, BookOpen, MessageCircle, Users, PenTool, Scale } from "lucide-react";
+import { LogOut, Moon, Sun, Heart, BookOpen, MessageCircle, Users, PenTool, Scale, BarChart3, History, Settings as SettingsIcon, Bell, CalendarDays, ShieldCheck, UserRound } from "lucide-react";
+import { BadgesSection } from "@/pages/reader-pages";
+import { isStaff } from "@shared/platform";
 import { Button } from "@/components/ui/button";
 import { PageHead, Avatar, EmptyBox, ThemeSwitch } from "@/components/shared";
 import { useApp, compact } from "@/lib/app-context";
@@ -65,7 +67,8 @@ export default function Profile() {
           <Avatar user={user} size={64} />
           <div className="min-w-0">
             <h1 className="truncate font-display text-2xl font-semibold" data-testid="text-profile-name">{user.displayName}</h1>
-            <p className="text-sm text-muted-foreground">@{user.username}{user.isCreator ? " · Creator" : " · Reader"}</p>
+            <p className="text-sm text-muted-foreground">@{user.username}{user.isCreator ? " · Creator" : " · Reader"}{isStaff(user) ? ` · ${user.role === "admin" ? "Admin" : "Moderator"}` : ""}</p>
+            <Link href={`/u/${user.username}`} className="text-xs font-medium text-primary hover:underline" data-testid="link-public-profile">View public profile</Link>
           </div>
         </div>
         <div className="relative mt-6 grid grid-cols-4 gap-2">
@@ -75,6 +78,12 @@ export default function Profile() {
         </div>
       </div>
       <ReadingStatsCard />
+      <nav aria-label="Your reading" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {([["/stats", BarChart3, "Statistics"], ["/timeline", History, "Timeline"], ["/readers", UserRound, "Find readers"], ["/calendar", CalendarDays, "Release calendar"]] as const).map(([href, Icon, l]) => (
+          <Link key={href} href={href} className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium transition hover:border-primary/40" data-testid={`link-profile-${href.slice(1)}`}><Icon className="h-4 w-4 text-primary" />{l}</Link>
+        ))}
+      </nav>
+      <BadgesSection />
       <section>
         <h2 className="mb-3 font-semibold">Creators you follow</h2>
         {!lib.data?.followedCreators.length ? <EmptyBox>You’re not following any creators yet. Follow them from the Home page.</EmptyBox> : (
@@ -87,6 +96,9 @@ export default function Profile() {
         <div className="flex w-full items-center gap-3 px-4 py-3 text-sm">
           {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}Dark mode<ThemeSwitch className="ml-auto" />
         </div>
+        {isStaff(user) && <Link href="/admin" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-admin"><ShieldCheck className="h-4 w-4 text-primary" />Admin dashboard<span className="ml-auto text-xs text-muted-foreground">Moderation, users, health</span></Link>}
+        <Link href="/notifications" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50"><Bell className="h-4 w-4 text-primary" />Notifications</Link>
+        <Link href="/settings" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-settings"><SettingsIcon className="h-4 w-4 text-primary" />Settings<span className="ml-auto text-xs text-muted-foreground">Privacy, notifications, accessibility</span></Link>
         <Link href="/studio" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-studio"><PenTool className="h-4 w-4 text-primary" />Creator Studio<span className="ml-auto text-xs text-muted-foreground">Publish your manga</span></Link>
         <Link href="/legal" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-legal"><Scale className="h-4 w-4 text-primary" />Licenses &amp; policies<span className="ml-auto text-xs text-muted-foreground">Terms, privacy, copyright</span></Link>
         <button onClick={signOut} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm text-primary hover:bg-accent/50" data-testid="button-signout"><LogOut className="h-4 w-4" />Sign out</button>

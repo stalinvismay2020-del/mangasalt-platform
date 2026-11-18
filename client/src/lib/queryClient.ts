@@ -2,6 +2,7 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 let authToken: string | null = null;
 export function setAuthToken(t: string | null) { authToken = t; }
+export function getAuthToken() { return authToken; }
 function authHeaders(): Record<string, string> { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
 
 export const API_BASE = "__PORT_5000__".startsWith("__") ? "" : "__PORT_5000__";

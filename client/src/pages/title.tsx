@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { FavouriteButton, AddToShelf, ChapterCounter, ReportButton } from "@/components/platform";
 import { Link, useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -83,7 +84,10 @@ export default function TitlePage() {
               )}
               <WorldLike id={t.id} liked={t.likedByMe} likes={t.likes} />
               <WorldSave id={t.id} saved={t.savedByMe} />
+              <FavouriteButton itemKey={`world:${t.id}`} />
+              <AddToShelf itemKey={`world:${t.id}`} />
             </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3 md:justify-start"><ChapterCounter itemKey={`world:${t.id}`} /><ReportButton targetType="world" targetId={t.id} /></div>
 
             {t.official.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs md:justify-start" data-testid="row-official">

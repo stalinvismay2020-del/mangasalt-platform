@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useApp, compact, timeAgo, rightsLabel, TYPE_ORIGIN } from "@/lib/app-context";
 import { asset, Avatar, TypeBadge, LikeButton, SaveButton, FollowButton } from "@/components/shared";
 import type { SeriesDetail, CommentItem } from "@shared/schema";
+import { FavouriteButton, AddToShelf, ChapterCounter, ReportButton, RegionBanner } from "@/components/platform";
 
 export default function SeriesPage({ params }: { params: { slug: string } }) {
   const { data, isLoading, error } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
@@ -44,6 +45,7 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
               <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 <TypeBadge type={s.type} />
                 <span className={`inline-flex items-center gap-1 text-xs font-medium ${s.readable ? "text-emerald-500" : "text-muted-foreground"}`}><ShieldCheck className="h-3.5 w-3.5" />{rightsLabel(s)}</span>
+                <ReportButton targetType="series" targetId={s.id} />
                 {s.rights === "original" && <Link href="/legal/copyright" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary" data-testid="link-report-copyright"><Flag className="h-3 w-3" />Report copyright</Link>}
               </div>
               <h1 className="font-display mt-2 text-3xl font-bold leading-tight sm:text-5xl" data-testid="text-series-title">{s.title}</h1>
@@ -65,13 +67,18 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
                 <LikeButton s={s} />
                 <SaveButton s={s} />
                 <FollowButton type="series" id={s.id} following={s.followedByMe} size="default" />
+                <FavouriteButton itemKey={`local:${s.id}`} />
+                <AddToShelf itemKey={`local:${s.id}`} />
               </div>
+              <div className="mt-3 flex justify-center sm:justify-start"><ChapterCounter itemKey={`local:${s.id}`} /></div>
             </div>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
+        <RegionBanner region={(data as any).region} />
+        {(s as any).approval && (s as any).approval !== "approved" && <p className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm" role="status">Only you and moderators can see this series. Status: {(s as any).approval}.</p>}
         <p className={`mt-2 text-[15px] leading-relaxed text-foreground/80 ${more ? "" : "line-clamp-3"}`}>{s.synopsis}</p>
         <button onClick={() => setMore(!more)} className="mt-1 text-sm font-medium text-primary" data-testid="button-synopsis-more">{more ? "Show less" : "Read more"}</button>
         <div className="mt-3 flex flex-wrap gap-1.5">{s.genres.map((g) => <Link key={g} href="/search" className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">{g}</Link>)}</div>

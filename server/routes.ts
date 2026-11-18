@@ -134,6 +134,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (u) { storage.readChapter(u.id, Number(req.params.id)); badges(u.id); }
     res.json({ ok: true });
   });
+  // last page reached in each chapter, synced across devices
+  db.exec(`CREATE TABLE IF NOT EXISTS reading_progress (user_id INTEGER NOT NULL, chapter_id INTEGER NOT NULL, page INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, chapter_id))`);
+  app.get("/api/chapters/:id/progress", (req, res) => {
+    const u = me(req);
+    const r: any = u ? db.prepare(`SELECT page, updated_at FROM reading_progress WHERE user_id = ? AND chapter_id = ?`).get(u.id, Number(req.params.id)) : null;
+    res.json({ page: r?.page ?? null, updatedAt: r?.updated_at ?? null });
+  });
+  app.put("/api/chapters/:id/progress", requireAuth, (req, res) => {
+    const id = Number(req.params.id), page = Math.max(0, Math.min(500, Math.floor(Number(req.body?.page) || 0)));
+    if (!db.prepare(`SELECT 1 FROM chapters WHERE id = ?`).get(id)) return res.status(404).json({ message: "Chapter not found" });
+    db.prepare(`INSERT INTO reading_progress (user_id, chapter_id, page, updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id, chapter_id) DO UPDATE SET page = excluded.page, updated_at = excluded.updated_at`).run((req as any).user.id, id, page, Date.now());
+    res.json({ ok: true });
+  });
   app.post("/api/chapters/:id/bookmark", requireAuth, (req, res) => {
     const page = Math.max(0, Math.min(500, Number(req.body?.page) || 0));
     const r = storage.toggleBookmark((req as any).user.id, Number(req.params.id), page);

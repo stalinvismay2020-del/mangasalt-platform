@@ -15,13 +15,36 @@ import Reader from "@/pages/reader";
 import TitlePage from "@/pages/title";
 import OfficialReader from "@/pages/official-reader";
 import { StudioHome, StudioNew, StudioSeries } from "@/pages/studio";
-import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge } from "@/components/shared";
+import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge, AmbientBackdrop, BackToTop } from "@/components/shared";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import NotFound from "@/pages/not-found";
 import Legal from "@/pages/legal";
 import { Link } from "wouter";
+import { ShelfPage, StatsPage, TimelinePage, ReadersPage, ReaderProfilePage, NotificationsPage } from "@/pages/reader-pages";
+import CalendarPage from "@/pages/calendar";
+import SettingsPage from "@/pages/settings";
+import AdminPage from "@/pages/admin";
+import { useRef, useState } from "react";
+
+/** Announce page changes to screen readers and move focus to the new page. */
+function RouteAnnouncer() {
+  const [loc] = useLocation();
+  const [msg, setMsg] = useState("");
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    const t = setTimeout(() => {
+      const h = document.querySelector("main h1") as HTMLElement | null;
+      setMsg(`${h?.textContent || "Page"} loaded`);
+      const main = document.getElementById("main");
+      main?.focus({ preventScroll: true });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [loc]);
+  return <div className="sr-only" aria-live="polite" aria-atomic="true">{msg}</div>;
+}
 
 function ScrollTop() {
   const [loc] = useLocation();
@@ -45,10 +68,13 @@ function Shell() {
   );
   return (
     <div className="min-h-screen pb-24 md:pb-0">
+      <a href="#main" className="skip-link" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>Skip to main content</a>
       <ScrollTop />
+      <RouteAnnouncer />
       <ToastBridge />
+      <AmbientBackdrop />
       <TopBar />
-      <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
+      <motion.main id="main" tabIndex={-1} className="outline-none" key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 14, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
         <AppRouter />
       </motion.main>
       <footer className="mt-10 border-t border-border">
@@ -58,6 +84,7 @@ function Shell() {
             <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from AniList. Chapters only from official publishers, open licenses, or their own creators. No unofficial scans, ever.</p>
           </div>
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Legal">
+            <Link href="/settings" className="hover:text-foreground">Accessibility</Link>
             <Link href="/legal/licenses" className="hover:text-foreground" data-testid="link-footer-licenses">Licenses &amp; credits</Link>
             <Link href="/legal/terms" className="hover:text-foreground">Terms</Link>
             <Link href="/legal/privacy" className="hover:text-foreground">Privacy</Link>
@@ -66,6 +93,7 @@ function Shell() {
         </div>
       </footer>
       <BottomNav />
+      <BackToTop />
       <QuickView />
       <AuthDialog />
     </div>
@@ -87,6 +115,16 @@ function AppRouter() {
       <Route path="/library" component={Library} />
       <Route path="/profile" component={Profile} />
       <Route path="/series/:slug" component={SeriesPage} />
+      <Route path="/shelf/:id" component={ShelfPage} />
+      <Route path="/stats" component={StatsPage} />
+      <Route path="/timeline" component={TimelinePage} />
+      <Route path="/readers" component={ReadersPage} />
+      <Route path="/u/:username" component={ReaderProfilePage} />
+      <Route path="/calendar" component={CalendarPage} />
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/notifications" component={NotificationsPage} />
+      <Route path="/admin" component={AdminPage} />
+      <Route path="/admin/:tab" component={AdminPage} />
       <Route path="/legal" component={Legal} />
       <Route path="/legal/:section" component={Legal} />
       <Route component={NotFound} />
