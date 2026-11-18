@@ -134,7 +134,7 @@ export type Comment = typeof comments.$inferSelect;
 export type InsertComment = z.infer<typeof insertCommentSchema>;
 
 // ---------- API response shapes ----------
-export type PublicUser = Pick<User, "id" | "username" | "displayName" | "bio" | "avatarHue" | "isCreator">;
+export type PublicUser = Pick<User, "id" | "username" | "displayName" | "bio" | "avatarHue" | "isCreator"> & { role?: string; verified?: number };
 
 export type SeriesCard = {
   id: number;
@@ -195,7 +195,7 @@ export type LibraryData = {
 };
 
 export type ChapterListItem = { id: number; number: number; title: string; pageCount: number; createdAt: number; read: boolean; thumb: string | null };
-export type SeriesDetail = { series: SeriesCard; chapters: ChapterListItem[]; resume: { id: number; number: number } | null; bookmarks: { chapterId: number; page: number; number: number; title: string }[] };
+export type SeriesDetail = { series: SeriesCard & { approval?: string; regions?: string }; region?: { blocked: boolean; country: string | null; label: string }; chapters: ChapterListItem[]; resume: { id: number; number: number } | null; bookmarks: { chapterId: number; page: number; number: number; title: string }[] };
 export type ChapterData = {
   chapter: { id: number; number: number; title: string; pages: string[] };
   series: { id: number; slug: string; title: string; type: string; rights: string; cover: string; creator: PublicUser; chapterCount: number };
