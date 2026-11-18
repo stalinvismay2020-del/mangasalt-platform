@@ -87,3 +87,23 @@ AniList is the main catalogue. Search results also include titles from the [Mang
 - **Covers.** MangaDex doesn't allow hotlinking, so covers are served through `GET /api/md/cover/:uuid/:file` and cached on disk in `cache/md-covers` (gitignored).
 - **Limits.** Requests are throttled to about 4 per second, cached for 30 minutes, and sent with an honest User-Agent. Browse pages give MangaDex 3.5 s and searches 6 s, then return AniList results alone.
 - **Credit.** Each MangaDex title page links back to its MangaDex page. The footer and Licenses page credit MangaDex.
+
+## In-app only reading
+
+The setting `in_app_only` (default **on**) makes MANGASALT a closed reading app. Home, search, trending, random, the library shelf and title pages list only series MANGASALT hosts with at least one readable chapter. No publisher links, embedded readers or outside chapter links are shown, and the release calendar skips external releases. Admins switch it at **Admin → Chapters → In-app only reading** (`GET/PUT /api/admin/settings/reading`, logged to the modlog). With it off, the AniList/MangaDex catalogue and official publisher links come back.
+
+## Bulk chapter import (ZIP / CBZ / PDF)
+
+- **Admin:** Admin → Chapters → pick a series → **Import ZIP / PDF**. Endpoint `POST /api/admin/content/series/:id/import` (raw body; query `name`, `rightsConfirmed=1`, optional `language`, `kind`, `number`, `title`, `publish=1`, `releaseAt`, `dryRun=1`).
+- **Creators:** Creator Studio → series → **Import** (`POST /api/studio/series/:id/import`). Normal review rules apply to new creators.
+- Layout: images at the archive root become one chapter; one folder per chapter (`Chapter 12/001.jpg`) becomes one chapter per folder, numbered from the folder name; each PDF becomes one chapter (pages rendered with poppler `pdfimages`/`pdftoppm`). Duplicate numbers are skipped, not overwritten.
+- Limits: 450 MB per archive, 15 MB per page, 300 pages per chapter, 300 chapters per archive.
+- CLI: `npm run import-chapters -- --series <slug|id> --file book.cbz --rights-confirmed [--kind volume --publish]`.
+
+## Open library
+
+`npm run open-library -- --bj <dir>` imports **Give My Regards to Black Jack** by SHUHO SATO (13 English volumes) from the official files at <https://densho810.com/free/> under the author's free secondary-use terms. Credit "Give My Regards to Black Jack" and "SHUHO SATO" is shown on the series page and in the reader. The terms also ask users to report the use to info@densho810.com within one month.
+
+`npm run open-library -- --mft` imports **Mini Fantasy Theater** by David Revoy (CC BY-SA 4.0) from <https://www.peppercarrot.com/en/miniFantasyTheater/>.
+
+Credits for open-licence series live in `shared/credits.ts`. Imported pages are written to `uploads/` (gitignored), so they live on the server, not in git.

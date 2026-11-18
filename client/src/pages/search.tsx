@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search as SearchIcon, Loader2, X, SlidersHorizontal, Check } from "lucide-react";
-import { PageHead, SeriesPoster } from "@/components/shared";
+import { PageHead, SeriesPoster, useSiteConfig } from "@/components/shared";
 import { SurpriseButton } from "@/components/surprise";
 import { WorldPoster, PosterSkel } from "@/components/world";
 import { useApp } from "@/lib/app-context";
@@ -34,6 +34,7 @@ function ChipRow({ label, id, value, options, onChange }: { label: string; id: s
 }
 
 export default function Search() {
+  const { inAppOnly: inApp } = useSiteConfig();
   const params = useParams<{ genre?: string; type?: string }>();
   const { setOpenSeries } = useApp();
   const [q, setQ] = useState("");
@@ -78,10 +79,10 @@ export default function Search() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
-      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua in the catalogue. Chapters are readable here only when MANGASALT hosts an authorised copy." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
+      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub={inApp ? "Everything here is hosted by MANGASALT and reads right inside the app." : "Every manga, manhwa and manhua in the catalogue. Chapters are readable here only when MANGASALT hosts an authorised copy."} /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
       <label className="flex h-12 items-center gap-3 rounded-2xl border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40">
         <SearchIcon className="h-5 w-5 text-muted-foreground" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search One Piece, Solo Leveling, Omniscient Reader…"
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={inApp ? "Search titles on MANGASALT…" : "Search One Piece, Solo Leveling, Omniscient Reader…"}
           className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" data-testid="input-search" />
         {res.isFetching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
         {q && <button onClick={() => setQ("")} aria-label="Clear" data-testid="button-clear-search"><X className="h-4 w-4 text-muted-foreground" /></button>}
@@ -91,8 +92,8 @@ export default function Search() {
         <ChipRow label="Type" id="type" value={type} options={TYPES} onChange={setType} />
         <ChipRow label="Status" id="status" value={status} options={STATUSES} onChange={setStatus} />
         <ChipRow label="Sort" id="sort" value={sort} options={SORTS} onChange={setSort} />
-        <ChipRow label="Released" id="period" value={period} options={PERIODS} onChange={setPeriod} />
-        <ChipRow label="Edition" id="official" value={official} options={[["", "All titles"], ["1", "Official English only"]]} onChange={setOfficial} />
+        {!inApp && <ChipRow label="Released" id="period" value={period} options={PERIODS} onChange={setPeriod} />}
+        {!inApp && <ChipRow label="Edition" id="official" value={official} options={[["", "All titles"], ["1", "Official English only"]]} onChange={setOfficial} />}
         <div className="flex items-center gap-3">
           <span className="w-16 shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground sm:w-20">Genres</span>
           <button onClick={() => setShowGenres(!showGenres)} aria-expanded={showGenres} className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium sm:text-sm ${genres.length ? "border border-primary bg-primary/15 text-primary" : "glass-btn lift text-muted-foreground hover:text-foreground"}`} data-testid="button-toggle-genres">
@@ -122,7 +123,7 @@ export default function Search() {
         )}
       </AnimatePresence>
 
-      {local.data && local.data.length > 0 && (
+      {!inApp && local.data && local.data.length > 0 && (
         <div className="mt-6">
           <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-500">Fully hosted on MANGASALT</p>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{local.data.map((s, k) => <SeriesPoster key={s.id} s={s} index={k} onOpen={setOpenSeries} size="sm" />)}</div>

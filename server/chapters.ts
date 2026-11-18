@@ -2,7 +2,8 @@
 // A chapter is "available" only when MANGASALT hosts its pages and has the right to show them:
 // published + approved + released + pages uploaded + series approved + the reader's region allowed.
 // Externally licensed chapters are listed for information only and link to the official publisher.
-import type { Express, Request, Response, NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
+import { readArchive, savePages, IMPORT_LIMITS } from "./importer";
 import fs from "node:fs";
 import path from "node:path";
 import { storage } from "./storage";
@@ -12,6 +13,7 @@ import { isMdId, mdUuidFor } from "./catalogue-md";
 import { tapasEpisodes } from "./tapas";
 import { countryOf, seriesRegion } from "./social";
 import { modlog } from "./admin";
+import { inAppOnly, setInAppOnly } from "./inapp";
 import { isStaff } from "@shared/platform";
 import type { PublicUser } from "@shared/schema";
 import { pageChapters, inferKind, fmtNum, CHAPTER_KINDS, type ChapterItem, type ChapterPage, type ChapterKind } from "@shared/chapters";
@@ -68,6 +70,8 @@ async function worldItems(req: Request, u: PublicUser | undefined, id: number) {
   const items = new Map<string, ChapterItem>();
   if (hosted) for (const c of hostedItems(hosted.id, viewerFor(req, u, hosted.id, hosted.creator_id))) items.set(numKey(c.kind, c.number ?? c.key), c);
 
+  // In-app only: list nothing but the chapters MANGASALT hosts.
+  if (inAppOnly()) return { t, list: Array.from(items.values()), hosted: hosted ? { slug: hosted.slug, title: hosted.title } : null, publishers: [] as string[] };
   const [md, tapas] = await Promise.all([
     (isMdId(id) && !t.movedTo
       ? (mdUuidFor(id) ? officialChaptersByMd(mdUuidFor(id)!) : Promise.resolve({ found: false, chapters: [] as any[] }))
@@ -163,6 +167,15 @@ export function registerChapterRoutes(app: Express, { me }: { me: (req: Request)
     published: (db.prepare(`SELECT COUNT(*) AS n FROM chapters WHERE series_id = ? AND published = 1 AND approval = 'approved' AND pages != '[]'`).get(s.id) as any).n,
   });
 
+  // ---------- reading mode ----------
+  app.get("/api/admin/settings/reading", mod, (_req, res) => res.json({ inAppOnly: inAppOnly() }));
+  app.put("/api/admin/settings/reading", admin, (req, res) => {
+    if (typeof req.body?.inAppOnly !== "boolean") return res.status(400).json({ message: "inAppOnly must be true or false" });
+    setInAppOnly(req.body.inAppOnly);
+    modlog(actor(req), "settings.reading_mode", "settings", "in_app_only", String(req.body.inAppOnly));
+    res.json({ inAppOnly: inAppOnly() });
+  });
+
   app.get("/api/admin/content/series", mod, (req, res) => {
     const q = str(req.query.q, 80);
     const rows = db.prepare(`SELECT s.*, u.username FROM series s JOIN users u ON u.id = s.creator_id WHERE s.title LIKE ? OR s.slug LIKE ? OR CAST(s.anilist_id AS TEXT) = ? ORDER BY s.removed, s.title LIMIT 100`).all(`%${q}%`, `%${q}%`, q) as any[];
@@ -235,6 +248,44 @@ export function registerChapterRoutes(app: Express, { me }: { me: (req: Request)
     modlog(actor(req), "content.chapter_create", "chapter", Number(r.lastInsertRowid), `${s.title} #${out.number} (${out.kind}, ${out.language})${publish ? " published" : " draft"}`);
     res.status(201).json(toAdminChapter(chapterRow(Number(r.lastInsertRowid))));
   });
+  // ---------- bulk import: ZIP / CBZ / PDF -> chapters ----------
+  // Body: the raw file. Query: name (file name), language, kind, number/title (single-chapter files),
+  // publish=1, releaseAt (ms), rightsConfirmed=1 (required), dryRun=1 (preview only, nothing is saved).
+  app.post("/api/admin/content/series/:id/import", admin, express.raw({ type: () => true, limit: IMPORT_LIMITS.archiveBytes }), wrap(async (req, res) => {
+    const s = seriesRow(Number(req.params.id));
+    if (!s || s.removed) return res.status(404).json({ message: "Series not found" });
+    const q = req.query as Record<string, string>;
+    const dry = q.dryRun === "1";
+    if (!dry && q.rightsConfirmed !== "1") return res.status(400).json({ message: "Confirm MANGASALT has permission to distribute these chapters" });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ message: "Choose a ZIP, CBZ or PDF file" });
+    const base = chapterInput({ number: 0, kind: q.kind || "regular", language: q.language || "en", releaseAt: q.releaseAt || undefined, title: "" });
+    if (base.errs.length) return res.status(400).json({ message: base.errs[0] });
+    const { chapters, problems } = await readArchive(req.body, str(q.name, 200) || "upload");
+    const single = chapters.length === 1;
+    let next = (db.prepare(`SELECT COALESCE(MAX(number), 0) AS m FROM chapters WHERE series_id = ? AND kind = ? AND language = ?`).get(s.id, base.out.kind, base.out.language) as any).m;
+    const plan = chapters.map((c) => {
+      const n = single && q.number ? Number(String(q.number).replace(",", ".")) : c.number ?? ++next;
+      if (n > next) next = n;
+      return { c, number: n, title: (single && q.title ? str(q.title, 120) : c.title) };
+    });
+    const skipped = [...problems];
+    const seen = new Set<number>();
+    const ok = plan.filter((p) => {
+      if (!Number.isFinite(p.number) || p.number < 0 || p.number > 100000) { skipped.push({ name: p.c.name, reason: "No valid chapter number. Add one to the file or folder name." }); return false; }
+      if (seen.has(p.number) || dupe(s.id, p.number, base.out.kind, base.out.language)) { skipped.push({ name: p.c.name, reason: `Chapter ${fmtNum(p.number)} already exists in this language` }); return false; }
+      seen.add(p.number); return true;
+    });
+    if (dry) return res.json({ preview: ok.map((p) => ({ name: p.c.name, number: p.number, title: p.title, pages: p.c.pages.length })), skipped });
+    const publish = q.publish === "1", now = Date.now(), uid = actor(req);
+    const ins = db.prepare(`INSERT INTO chapters (series_id, number, title, pages, created_at, approval, publish_at, notified, kind, language, numbered, published, updated_at) VALUES (?,?,?,?,?,'approved',?,?,?,?,?,?,?)`);
+    const created = ok.map((p) => {
+      const pages = savePages(uid, p.c.pages);
+      const r = ins.run(s.id, p.number, p.title, JSON.stringify(pages), now, base.out.publish_at, publish ? 0 : 1, base.out.kind, base.out.language, base.out.numbered, publish ? 1 : 0, now);
+      return toAdminChapter(chapterRow(Number(r.lastInsertRowid)));
+    });
+    modlog(uid, "content.chapter_import", "series", s.id, `${created.length} chapter(s) from ${str(q.name, 120) || "upload"}${publish ? " published" : " as drafts"}; ${skipped.length} skipped`);
+    res.status(created.length ? 201 : 400).json({ created, skipped, message: created.length ? undefined : skipped[0]?.reason ?? "Nothing was imported" });
+  }));
   app.patch("/api/admin/content/chapters/:cid", admin, (req, res) => {
     const c = chapterRow(Number(req.params.cid));
     if (!c) return res.status(404).json({ message: "Chapter not found" });

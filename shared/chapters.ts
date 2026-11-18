@@ -2,8 +2,8 @@
 // Every chapter has one honest status. Only "available" chapters can be opened in MANGASALT.
 
 export type ChapterStatus = "available" | "coming_soon" | "external" | "unavailable" | "not_uploaded";
-export type ChapterKind = "regular" | "prologue" | "side" | "extra" | "special" | "oneshot";
-export const CHAPTER_KINDS: ChapterKind[] = ["regular", "prologue", "side", "extra", "special", "oneshot"];
+export type ChapterKind = "regular" | "prologue" | "side" | "extra" | "special" | "oneshot" | "volume";
+export const CHAPTER_KINDS: ChapterKind[] = ["regular", "prologue", "side", "extra", "special", "oneshot", "volume"];
 export const STATUS_ORDER: ChapterStatus[] = ["available", "coming_soon", "external", "unavailable", "not_uploaded"];
 export const STATUS_LABEL: Record<ChapterStatus, string> = {
   available: "Available to read",
@@ -13,7 +13,7 @@ export const STATUS_LABEL: Record<ChapterStatus, string> = {
   not_uploaded: "Not yet uploaded",
 };
 export const KIND_LABEL: Record<ChapterKind, string> = {
-  regular: "Chapter", prologue: "Prologue", side: "Side story", extra: "Extra", special: "Special", oneshot: "Oneshot",
+  regular: "Chapter", prologue: "Prologue", side: "Side story", extra: "Extra", special: "Special", oneshot: "Oneshot", volume: "Volume",
 };
 
 export type ChapterMatch = "exact" | "related" | "kind" | "title" | "prefix";
@@ -82,7 +82,7 @@ export function inferKind(number: string | null, title: string | null): ChapterK
 }
 
 const KIND_WORDS: [RegExp, ChapterKind][] = [
-  [/^prolog(ue)?$/, "prologue"], [/^side( ?stor(y|ies))?$/, "side"], [/^(extras?|bonus|omake)$/, "extra"],
+  [/^prolog(ue)?$/, "prologue"], [/^side( ?stor(y|ies))?$/, "side"], [/^(extras?|bonus|omake)$/, "extra"], [/^vol(ume)?s?$/, "volume"],
   [/^specials?$/, "special"], [/^(one ?-?shot|oneshot)$/, "oneshot"],
 ];
 const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9.]+/g, " ").replace(/\s+/g, " ").trim();

@@ -1,4 +1,5 @@
 import { NotFoundView } from "@/pages/not-found";
+import { creditFor } from "@shared/credits";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -55,7 +56,7 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
                 {s.rating > 0 && <span className="flex items-center gap-1"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>}
                 <span className="flex items-center gap-1 text-muted-foreground"><Heart className="h-4 w-4" />{compact(s.likes)}</span>
                 <span className="flex items-center gap-1 text-muted-foreground"><Eye className="h-4 w-4" />{compact(s.views)}</span>
-                <span className="flex items-center gap-1 text-muted-foreground"><BookOpen className="h-4 w-4" />{s.chapterCount} {s.chapterCount === 1 ? "episode" : "episodes"}</span>
+                <span className="flex items-center gap-1 text-muted-foreground"><BookOpen className="h-4 w-4" />{s.chapterCount} {(() => { const w = chapters.length && chapters.every((c: any) => c.kind === "volume") ? "volume" : s.type === "manga" ? "chapter" : "episode"; return s.chapterCount === 1 ? w : `${w}s`; })()}</span>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
                 {target ? (
@@ -84,13 +85,12 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
         <button onClick={() => setMore(!more)} className="mt-1 text-sm font-medium text-primary" data-testid="button-synopsis-more">{more ? "Show less" : "Read more"}</button>
         <div className="mt-3 flex flex-wrap gap-1.5">{s.genres.map((g) => <Link key={g} href="/search" className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:text-foreground">{g}</Link>)}</div>
 
-        {s.rights === "cc-by-4.0" && (
-          <p className="mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs leading-relaxed text-muted-foreground">
-            <span className="font-medium text-foreground">{s.title}</span> by {s.creator.displayName} is shared under{" "}
-            <a className="text-primary underline-offset-2 hover:underline" href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>, from{" "}
-            <a className="text-primary underline-offset-2 hover:underline" href="https://www.peppercarrot.com" target="_blank" rel="noreferrer">peppercarrot.com</a>. Every page is hosted on MANGASALT and free to read.
-          </p>
-        )}
+        {creditFor(s.slug) && (() => { const c = creditFor(s.slug)!; return (
+          <p className="mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs leading-relaxed text-muted-foreground" data-testid="text-credit">
+            <span className="font-medium text-foreground">{c.work}</span> by <span className="font-medium text-foreground">{c.author}</span>, shared under the{" "}
+            <a className="text-primary underline-offset-2 hover:underline" href={c.licenseUrl} target="_blank" rel="noreferrer">{c.license}</a>, from{" "}
+            <a className="text-primary underline-offset-2 hover:underline" href={c.sourceUrl} target="_blank" rel="noreferrer">{c.source}</a>.{c.note ? ` ${c.note}` : ""} Every page is hosted on MANGASALT and free to read.
+          </p>); })()}
 
         {bookmarks.length > 0 && (
           <div className="mt-5">

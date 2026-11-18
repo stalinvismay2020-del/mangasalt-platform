@@ -1,5 +1,6 @@
 // Reader features: shelves & favourites, follow readers, stats, timeline, achievements,
 // release calendar, regional availability and notifications.
+import { inAppOnly } from "./inapp";
 import type { Express, Request, Response, NextFunction } from "express";
 import { storage, pub, CH_VISIBLE, SERIES_VISIBLE } from "./storage";
 import { officialChapters } from "./mangadex";
@@ -346,7 +347,7 @@ export async function calendar(from: number, to: number, userId?: number, countr
     source: "mangasalt", publisher: `MANGASALT · ${c.display_name}`, origin: ORIGIN[c.type] ?? "Webcomic", type: c.type, upcoming: c.publish_at > now, regions: regionLabel(c.regions), mine: mine.has(c.sid),
   }));
   // official English releases for worldwide titles the reader saved, favourited or is reading
-  if (userId) {
+  if (userId && !inAppOnly()) {
     const titles = db.prepare(`SELECT DISTINCT w.anilist_id, w.title, w.cover, w.type FROM world_titles w WHERE w.anilist_id IN (
         SELECT anilist_id FROM world_saves WHERE user_id = @u UNION SELECT -ri.series_id FROM reading_list_items ri JOIN reading_lists l ON l.id = ri.list_id WHERE l.user_id = @u AND ri.series_id < 0
         UNION SELECT anilist_id FROM world_history WHERE user_id = @u AND at > @since) LIMIT 12`).all({ u: userId, since: now - 60 * DAY }) as any[];

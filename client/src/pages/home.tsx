@@ -5,16 +5,16 @@ import { Link, useLocation } from "wouter";
 import { Flame, Star, TrendingUp, Clock, Trophy, Sparkles, Heart, BookOpen, Play, ShieldCheck, Compass, PenTool, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp, TYPE_LABEL, compact } from "@/lib/app-context";
-import { asset, SeriesPoster } from "@/components/shared";
+import { asset, SeriesPoster, useSiteConfig } from "@/components/shared";
 import { SurpriseButton } from "@/components/surprise";
-import { WorldRail, STATUS_LABEL } from "@/components/world";
+import { WorldRail, STATUS_LABEL, titleHref } from "@/components/world";
 import type { WorldHome, WorldCard, WorldShelfItem } from "@shared/world";
 import type { SeriesCard } from "@shared/schema";
 
 const rise = { hide: { opacity: 0, y: 22, filter: "blur(6px)" }, show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } }, exit: { opacity: 0, y: -10, transition: { duration: 0.2 } } };
 const strip = (s: string) => s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 
-function Hero({ items }: { items?: WorldCard[] }) {
+function Hero({ items, loading }: { items?: WorldCard[]; loading?: boolean }) {
   const [, nav] = useLocation();
   const [i, setI] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -25,6 +25,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
     return () => clearInterval(t);
   }, [paused, list.length]);
   const s = list[i];
+  if (!s && !loading) return null;
   if (!s) return <div className="mx-auto mt-4 h-[560px] max-w-6xl px-4"><div className="shimmer relative h-full overflow-hidden rounded-3xl bg-muted" /></div>;
   const glow = s.color ?? "#f97316";
   return (
@@ -45,7 +46,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
             const off = (idx - i + list.length) % list.length;
             if (off > 2) return null;
             return (
-              <motion.button key={it.id} onClick={() => (off === 0 ? nav(`/title/${it.id}`) : setI(idx))} aria-label={off === 0 ? `Open ${it.title}` : `Show ${it.title}`} data-testid={`button-hero-${it.id}`}
+              <motion.button key={it.id} onClick={() => (off === 0 ? nav(titleHref(it)) : setI(idx))} aria-label={off === 0 ? `Open ${it.title}` : `Show ${it.title}`} data-testid={`button-hero-${it.id}`}
                 className="absolute inset-0 overflow-hidden rounded-2xl ring-1 ring-white/15"
                 style={{ boxShadow: off === 0 ? `0 30px 90px -18px ${glow}` : undefined }}
                 animate={{ x: off * 28, y: -off * 8, scale: 1 - off * 0.08, opacity: off === 0 ? 1 : 0.4, rotate: off * 5, zIndex: 10 - off, filter: off ? "blur(1.5px)" : "blur(0px)" }}
@@ -61,7 +62,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
           <AnimatePresence mode="wait">
             <motion.div key={s.id} initial="hide" animate="show" exit="exit" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
               <motion.p variants={rise} className="font-display text-6xl font-bold leading-none sm:text-7xl" style={{ color: "transparent", WebkitTextStroke: "2px hsl(var(--primary))" }}>#{i + 1}</motion.p>
-              <motion.p variants={rise} className="mt-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary md:justify-start"><TrendingUp className="h-3.5 w-3.5" />Trending worldwide · {TYPE_LABEL[s.type]}</motion.p>
+              <motion.p variants={rise} className="mt-3 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary md:justify-start"><TrendingUp className="h-3.5 w-3.5" />{s.source === "mangasalt" ? "On MANGASALT" : "Trending worldwide"} · {TYPE_LABEL[s.type] ?? "Comic"}</motion.p>
               <motion.h1 variants={rise} className="font-display mt-3 text-balance text-[clamp(2.1rem,1.3rem+3.4vw,4rem)] font-bold leading-[0.98] tracking-tight">{s.title}</motion.h1>
               <motion.div variants={rise} className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-muted-foreground md:justify-start">
                 {s.score ? <span className="flex items-center gap-1 text-foreground"><Star className="h-4 w-4 fill-amber-400 text-amber-400" />{(s.score / 10).toFixed(1)}</span> : null}
@@ -69,7 +70,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
               </motion.div>
               <motion.p variants={rise} className="mx-auto mt-4 line-clamp-3 max-w-lg leading-relaxed text-foreground/80 md:mx-0">{strip(s.blurb)}</motion.p>
               <motion.div variants={rise} className="mt-6 flex flex-wrap justify-center gap-2 md:justify-start">
-                <Button size="lg" className="glow-primary gap-2 rounded-full px-6" onClick={() => nav(`/title/${s.id}`)} data-testid="button-hero-open"><BookOpen className="h-4 w-4" />View chapters</Button>
+                <Button size="lg" className="glow-primary gap-2 rounded-full px-6" onClick={() => nav(titleHref(s))} data-testid="button-hero-open"><BookOpen className="h-4 w-4" />View chapters</Button>
                 <SurpriseButton />
               </motion.div>
             </motion.div>
@@ -138,7 +139,7 @@ function ContinueReading({ items }: { items: WorldShelfItem[] }) {
       <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
         {items.map((m, k) => (
           <motion.div key={m.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: k * 0.05 }} className="shrink-0 snap-start">
-            <Link href={`/title/${m.id}`} className="group flex w-64 items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition hover:-translate-y-0.5 hover:border-primary/50" data-testid={`link-continue-${m.id}`}>
+            <Link href={titleHref(m)} className="group flex w-64 items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition hover:-translate-y-0.5 hover:border-primary/50" data-testid={`link-continue-${m.id}`}>
               <img src={asset(m.cover)} alt="" className="h-20 w-14 rounded-lg object-cover" />
               <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-muted-foreground">{!m.chapter ? "Not started" : /^\d/.test(m.chapter) ? `Last opened: chapter ${m.chapter}` : "Opened at the publisher"}</p></div>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition group-hover:scale-110"><Play className="h-4 w-4 fill-current" /></span>
@@ -221,7 +222,7 @@ function MostLiked() {
       <h2 className="font-display mb-4 text-xl font-semibold sm:text-2xl">Most liked on MANGASALT</h2>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {data.slice(0, 6).map((m, k) => (
-          <Link key={m.id} href={`/title/${m.id}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 transition hover:border-primary/50">
+          <Link key={m.id} href={titleHref(m)} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 transition hover:border-primary/50">
             <span className="font-display w-7 text-center text-xl font-bold text-primary">{k + 1}</span>
             <img src={asset(m.cover)} alt="" className="h-14 w-10 rounded object-cover" />
             <span className="line-clamp-1 flex-1 text-sm font-semibold">{m.title}</span>
@@ -235,17 +236,18 @@ function MostLiked() {
 
 export default function Home() {
   const { user } = useApp();
+  const { inAppOnly: inApp } = useSiteConfig();
   const { data, isLoading } = useQuery<WorldHome>({ queryKey: ["/api/world/home"] });
   const mine = useQuery<{ saved: WorldShelfItem[]; reading: WorldShelfItem[] }>({ queryKey: ["/api/me/world"], enabled: !!user });
   const local = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { order: "trending" }] });
   return (
     <div className="home-float">
-      <Hero items={data?.trending} />
+      <Hero items={data?.trending} loading={isLoading} />
       <div className="mx-auto max-w-6xl space-y-12 px-4 pb-16 sm:px-6">
 {user && mine.data?.reading.length ? <Reveal><ContinueReading items={mine.data.reading} /></Reveal> : null}
-        <Reveal><WorldRail kicker="Right now" icon={Flame} title="Trending worldwide" items={data?.trending} loading={isLoading} ranked action={<Link href="/trending" className="text-sm font-medium text-primary">Charts</Link>} /></Reveal>
+        <Reveal><WorldRail kicker="Right now" icon={Flame} title={inApp ? "Trending on MANGASALT" : "Trending worldwide"} items={data?.trending} loading={isLoading} ranked action={<Link href="/trending" className="text-sm font-medium text-primary">Charts</Link>} /></Reveal>
         <Reveal><WorldRail kicker="Korea" icon={Sparkles} title="Popular manhwa" items={data?.manhwa} loading={isLoading} action={<Link href="/search/type/manhwa" className="text-sm font-medium text-primary">All</Link>} /></Reveal>
-        <Reveal><FreeOnSalt items={(local.data ?? []).filter((s) => s.slug === "pepper-and-carrot")} /></Reveal>
+        {!inApp && <Reveal><FreeOnSalt items={(local.data ?? []).filter((s) => s.slug === "pepper-and-carrot")} /></Reveal>}
         <Reveal><CreatorOriginals items={local.data ?? []} /></Reveal>
         <Reveal><WorldRail kicker="Japan" icon={BookOpen} title="Popular manga" items={data?.manga} loading={isLoading} action={<Link href="/search/type/manga" className="text-sm font-medium text-primary">All</Link>} /></Reveal>
         <Reveal><WorldRail kicker="China" icon={Sparkles} title="Popular manhua" items={data?.manhua} loading={isLoading} action={<Link href="/search/type/manhua" className="text-sm font-medium text-primary">All</Link>} /></Reveal>

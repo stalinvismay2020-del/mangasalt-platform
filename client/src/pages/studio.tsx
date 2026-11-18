@@ -12,6 +12,7 @@ import { useApp, compact } from "@/lib/app-context";
 import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { prepareImage, uploadData } from "@/lib/upload";
 import { useToast } from "@/hooks/use-toast";
+import { ImportChaptersDialog } from "@/components/import-chapters";
 
 type MySeries = { id: number; slug: string; title: string; type: string; cover: string; status: string; views: number; chapters: number; likes: number; comments: number };
 type StudioChapter = { id: number; number: number; title: string; pages: string[]; createdAt: number };
@@ -273,6 +274,7 @@ export function StudioSeries() {
   const [edit, setEdit] = useState(false);
   const [v, setV] = useState<Fields | null>(null);
   const [editor, setEditor] = useState<"new" | number | null>(null);
+  const [imp, setImp] = useState(false);
   useEffect(() => { if (s && !s.chapters.length && editor === null) setEditor("new"); }, [s?.id]);
   useEffect(() => { if (s) setV({ title: s.title, type: s.type, status: s.status, synopsis: s.synopsis, genres: s.genres, cover: s.cover }); }, [s]);
   const save = useMutation({
@@ -321,8 +323,9 @@ export function StudioSeries() {
 
       <div className="mb-4 mt-10 flex items-center justify-between">
         <h2 className="font-display text-xl font-semibold">Chapters <span className="text-muted-foreground">({s.chapters.length})</span></h2>
-        {editor === null && <Button className="gap-1.5 rounded-full" onClick={() => setEditor("new")} data-testid="button-add-chapter"><Plus className="h-4 w-4" />Add chapter</Button>}
+        {editor === null && <div className="flex gap-2"><Button variant="outline" className="gap-1.5 rounded-full" onClick={() => setImp(true)} data-testid="button-studio-import"><Upload className="h-4 w-4" />Import</Button><Button className="gap-1.5 rounded-full" onClick={() => setEditor("new")} data-testid="button-add-chapter"><Plus className="h-4 w-4" />Add chapter</Button></div>}
       </div>
+      {imp && <ImportChaptersDialog endpoint={`/api/studio/series/${s.id}/import`} mode="creator" onClose={() => setImp(false)} />}
       <AnimatePresence mode="wait">
         {editor !== null && (
           <div className="mb-4">

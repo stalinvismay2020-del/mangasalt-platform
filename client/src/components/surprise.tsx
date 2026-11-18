@@ -1,3 +1,4 @@
+import { titleHref } from "@/components/world";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -14,7 +15,7 @@ export function SurpriseButton({ type, className = "" }: { type?: string; classN
     try {
       const r = await apiRequest("GET", `/api/world/random${type ? `?type=${type}` : ""}`);
       const d = await r.json();
-      if (d?.id) nav(`/title/${d.id}`);
+      if (d?.id) nav(titleHref(d));
     } catch {} finally { setBusy(false); }
   };
   return (

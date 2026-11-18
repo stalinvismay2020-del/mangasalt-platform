@@ -1,3 +1,4 @@
+import { titleHref } from "@/components/world";
 import { useLocation, Link } from "wouter";
 import type { WorldShelfItem } from "@shared/world";
 import { useQuery } from "@tanstack/react-query";
@@ -32,7 +33,7 @@ function ContinueCard({ s }: { s: SeriesCard }) {
 
 function ShelfCard({ m }: { m: WorldShelfItem }) {
   return (
-    <Link href={`/title/${m.id}`} data-testid={`card-world-continue-${m.id}`}
+    <Link href={titleHref(m)} data-testid={`card-world-continue-${m.id}`}
       className="group flex w-72 shrink-0 snap-start items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40">
       <img src={asset(m.cover)} alt="" className="h-20 w-14 rounded-md object-cover" />
       <div className="min-w-0 flex-1"><p className="truncate font-semibold group-hover:text-primary">{m.title}</p><p className="truncate text-xs text-muted-foreground">{!m.chapter ? "Not started" : /^\d/.test(m.chapter) ? `Last opened: chapter ${m.chapter}` : "Opened at the publisher"}</p></div>
@@ -42,7 +43,7 @@ function ShelfCard({ m }: { m: WorldShelfItem }) {
 function ShelfPoster({ m, k }: { m: WorldShelfItem; k: number }) {
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: k * 0.04 }}>
-      <Link href={`/title/${m.id}`} className="group block" data-testid={`card-world-saved-${m.id}`}>
+      <Link href={titleHref(m)} className="group block" data-testid={`card-world-saved-${m.id}`}>
         <img src={asset(m.cover)} alt={`${m.title} cover`} className="aspect-[2/3] w-full rounded-xl object-cover transition duration-500 group-hover:-translate-y-1 group-hover:shadow-xl" />
         <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-tight group-hover:text-primary">{m.title}</p>
       </Link>

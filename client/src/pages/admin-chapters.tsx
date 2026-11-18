@@ -14,6 +14,9 @@ import { asset } from "@/components/shared";
 import { isAdmin } from "@shared/platform";
 import { CHAPTER_KINDS, KIND_LABEL, chapterLabel, fmtNum, type ChapterKind } from "@shared/chapters";
 import { PageUploader, type Pg } from "@/pages/studio";
+import { ImportChaptersDialog } from "@/components/import-chapters";
+import { Switch } from "@/components/ui/switch";
+import { queryClient } from "@/lib/queryClient";
 
 type AdminSeries = { id: number; slug: string; title: string; type: string; cover: string; rights: string; rightsNote: string; anilistId: number | null; approval: string; removed: boolean; creator: string; chapters: number; published: number };
 type AdminChapter = { id: number; seriesId: number; number: number; numbered: boolean; kind: ChapterKind; title: string; language: string; releaseAt: number; published: boolean; approval: string; status: string; pageCount: number; pages: string[]; updatedAt: number };
@@ -34,6 +37,8 @@ export default function ChaptersTab() {
   const list = useQuery<AdminSeries[]>({ queryKey: ["/api/admin/content/series", { q }], staleTime: 0 });
   useEffect(() => { if (sel == null && list.data?.length) setSel(list.data[0].id); }, [list.data, sel]);
   return (
+    <div className="space-y-4">
+    <ReadingMode canEdit={isAdmin(user)} />
     <div className="grid gap-4 xl:grid-cols-[280px_1fr]">
       <section className="rounded-2xl border border-border bg-card p-3">
         <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -52,6 +57,32 @@ export default function ChaptersTab() {
       </section>
       {sel != null ? <SeriesChapters id={sel} canEdit={isAdmin(user)} /> : <p className="p-6 text-sm text-muted-foreground">Pick a series.</p>}
     </div>
+    </div>
+  );
+}
+
+/** In-app only reading mode: list only titles MANGASALT hosts, with no outside reading links. */
+function ReadingMode({ canEdit }: { canEdit: boolean }) {
+  const { toast } = useToast();
+  const q = useQuery<{ inAppOnly: boolean }>({ queryKey: ["/api/admin/settings/reading"], staleTime: 0 });
+  const m = useMutation({
+    mutationFn: async (on: boolean) => (await apiRequest("PUT", "/api/admin/settings/reading", { inAppOnly: on })).json(),
+    onSuccess: (d: { inAppOnly: boolean }) => {
+      queryClient.invalidateQueries(); toast({ title: d.inAppOnly ? "In-app only reading is on" : "Worldwide catalogue is on" });
+    },
+    onError: (e: Error) => toast({ title: "Couldn't change reading mode", description: e.message }),
+  });
+  const on = q.data?.inAppOnly ?? true;
+  return (
+    <section className="flex flex-wrap items-start gap-3 rounded-2xl border border-border bg-card p-4" data-testid="card-reading-mode">
+      <div className="min-w-0 flex-1">
+        <h3 className="font-semibold">In-app only reading</h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">{on
+          ? "On. Home, search, trending and title pages show only series hosted on MANGASALT. No publisher links or outside readers are shown."
+          : "Off. The worldwide catalogue (AniList and MangaDex) is listed too, with links to official publishers for chapters MANGASALT doesn't host."}</p>
+      </div>
+      <Switch checked={on} disabled={!canEdit || q.isLoading || m.isPending} onCheckedChange={(v) => m.mutate(v)} aria-label="In-app only reading" data-testid="switch-in-app-only" />
+    </section>
   );
 }
 
@@ -60,6 +91,7 @@ function SeriesChapters({ id, canEdit }: { id: number; canEdit: boolean }) {
   const q = useQuery<{ series: AdminSeries; chapters: AdminChapter[] }>({ queryKey: [`/api/admin/content/series/${id}/chapters`], staleTime: 0 });
   const [edit, setEdit] = useState<AdminChapter | "new" | null>(null);
   const [del, setDel] = useState<AdminChapter | null>(null);
+  const [imp, setImp] = useState(false);
   const act = useMutation({
     mutationFn: async ({ method, url, body }: { method: string; url: string; body?: any; ok?: string }) => (await apiRequest(method, url, body)).json(),
     onSuccess: (_d, v) => { invalidatePrefixes("/api/admin/content", "/api/series", "/api/world/title", "/api/chapters"); if (v.ok) toast({ title: v.ok }); },
@@ -73,7 +105,7 @@ function SeriesChapters({ id, canEdit }: { id: number; canEdit: boolean }) {
       <section className="rounded-2xl border border-border bg-card p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h3 className="font-semibold">Chapters · {chapters.length}</h3>
-          {canEdit && <Button size="sm" className="gap-1 rounded-full" onClick={() => setEdit("new")} data-testid="button-new-chapter"><Plus className="h-4 w-4" />New chapter</Button>}
+          {canEdit && <div className="flex gap-2"><Button size="sm" variant="secondary" className="gap-1 rounded-full" onClick={() => setImp(true)} data-testid="button-import-chapters"><Upload className="h-4 w-4" />Import ZIP / PDF</Button><Button size="sm" className="gap-1 rounded-full" onClick={() => setEdit("new")} data-testid="button-new-chapter"><Plus className="h-4 w-4" />New chapter</Button></div>}
         </div>
         {!chapters.length ? <p className="py-6 text-center text-sm text-muted-foreground">No chapters yet.</p> : (
           <div className="overflow-x-auto">
@@ -106,6 +138,7 @@ function SeriesChapters({ id, canEdit }: { id: number; canEdit: boolean }) {
         )}
       </section>
       {edit && <ChapterEditor seriesId={s.id} c={edit === "new" ? null : edit} nextNumber={Math.floor(Math.max(0, ...chapters.filter((c) => c.kind === "regular").map((c) => c.number))) + 1} onClose={() => setEdit(null)} />}
+      {imp && <ImportChaptersDialog endpoint={`/api/admin/content/series/${s.id}/import`} mode="admin" onClose={() => setImp(false)} />}
       <DeleteDialog c={del} onClose={() => setDel(null)} onDelete={(c, confirm) => act.mutate({ method: "DELETE", url: `/api/admin/content/chapters/${c.id}`, body: { confirm }, ok: "Chapter deleted" }, { onSuccess: () => setDel(null) })} />
     </div>
   );

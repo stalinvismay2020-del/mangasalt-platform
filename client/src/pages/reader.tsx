@@ -1,4 +1,5 @@
 import { NotFoundView } from "@/pages/not-found";
+import { creditFor } from "@shared/credits";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
@@ -220,7 +221,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
           {countdown !== null && <p className="mt-3 text-sm opacity-70" aria-live="polite">Opening next episode in {countdown}s · <button className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setCountdown(null)}>Cancel</button></p>}
         </>
       ) : <p className="mt-3 text-sm opacity-60">You're all caught up. Follow the series to hear about new episodes.</p>}
-      {s.rights === "cc-by-4.0" && <p className="mt-4 text-xs opacity-50">{s.title} by {s.creator.displayName}, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer" className="underline">CC BY 4.0</a> · <a href="https://www.peppercarrot.com" target="_blank" rel="noreferrer" className="underline">peppercarrot.com</a></p>}
+      {creditFor(s.slug) && (() => { const c = creditFor(s.slug)!; return <p className="mt-4 text-xs opacity-60" data-testid="text-reader-credit">{c.work} by {c.author} · <a href={c.licenseUrl} target="_blank" rel="noreferrer" className="underline">{c.license}</a> · <a href={c.sourceUrl} target="_blank" rel="noreferrer" className="underline">{c.source}</a></p>; })()}
     </div>
   );
 

@@ -26,14 +26,16 @@ function Overview() {
   return (
     <>
       <H>How MANGASALT stays legal</H>
-      <P>MANGASALT is a discovery and community app. It does not copy, store or redistribute anyone else's manga. Every chapter you read comes from one of three places:</P>
+      <P>MANGASALT is its own reading platform. Every page you read is hosted by MANGASALT and comes from one of these sources:</P>
       <ul className="mt-3 space-y-2">
-        <Li><b className="text-foreground">Official publishers' own readers</b> (MANGA Plus by Shueisha, Tapas), shown inside the app exactly as the publisher serves them, with their ads, locks and coins intact.</Li>
-        <Li><b className="text-foreground">Openly licensed comics</b> such as Pepper&amp;Carrot (CC BY 4.0), hosted with full credit.</Li>
+        <Li><b className="text-foreground">Openly licensed comics</b> such as Pepper&amp;Carrot (CC BY 4.0) and Mini Fantasy Theater (CC BY-SA 4.0), hosted with full credit.</Li>
+        <Li><b className="text-foreground">Manga released for free reuse by its author</b>, such as Give My Regards to Black Jack by SHUHO SATO, hosted from the author's official data under the author's terms.</Li>
+        <Li><b className="text-foreground">Works licensed to MANGASALT</b> by publishers or rights holders.</Li>
         <Li><b className="text-foreground">Creators' own work</b>, uploaded through Creator Studio by people who confirm they own the rights.</Li>
       </ul>
       <H>What we never do</H>
       <ul className="mt-3 space-y-2">
+        <No>Link readers away to other reading sites. In in-app only mode, MANGASALT lists only titles it hosts.</No>
         <No>Show fan scanlations or images taken from unofficial manga sites.</No>
         <No>Remove publisher paywalls, ads or "wait-free" timers.</No>
         <No>Show a chapter as readable here unless MANGASALT hosts it with the rights to distribute it.</No>
@@ -60,6 +62,10 @@ function Licenses() {
       <P>MANGA Plus chapters are © Shueisha and their creators. Tapas episodes are © their creators and Tapas Entertainment. Both are shown in each publisher's own reader. MANGASALT does not host their pages, and every view counts for the publisher.</P>
       <H>Pepper&amp;Carrot</H>
       <P>Pepper&amp;Carrot by <A href="https://www.peppercarrot.com">David Revoy</A> is licensed under <A href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0</A>. It is hosted on MANGASALT unchanged apart from format conversion.</P>
+      <H>Mini Fantasy Theater</H>
+      <P>Mini Fantasy Theater by <A href="https://www.peppercarrot.com/en/miniFantasyTheater/">David Revoy</A> is licensed under <A href="https://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0</A>. It is hosted on MANGASALT unchanged apart from format conversion, under the same licence.</P>
+      <H>Give My Regards to Black Jack</H>
+      <P>Give My Regards to Black Jack, SHUHO SATO. Hosted under the <A href="https://densho810.com/free/">free secondary use terms of Sato Manga Works</A>, using only the official English data published at densho810.com. The credit "Give My Regards to Black Jack" and "SHUHO SATO" is shown with the work.</P>
       <H>Creator originals</H>
       <P>Creators keep full ownership of what they publish. By publishing, a creator gives MANGASALT a non-exclusive, worldwide, royalty-free license to host and display that work in the app until they delete it.</P>
       <H>Fonts &amp; libraries</H>

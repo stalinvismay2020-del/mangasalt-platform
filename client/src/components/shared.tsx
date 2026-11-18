@@ -17,6 +17,12 @@ import { NotificationBell } from "@/components/platform";
 const API_ASSET = (p: string) => (!p ? p : p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/api/") ? `${API_BASE}${p}` : p.startsWith("/") ? `.${p}` : p);
 export const asset = API_ASSET;
 
+/** Public site settings. inAppOnly: list only titles readable inside MANGASALT (default on). */
+export function useSiteConfig() {
+  const { data } = useQuery<{ googleClientId: string | null; inAppOnly?: boolean }>({ queryKey: ["/api/auth/config"], staleTime: 5 * 60_000 });
+  return { inAppOnly: data?.inAppOnly !== false, googleClientId: data?.googleClientId ?? null, loaded: !!data };
+}
+
 // ---------- Avatar ----------
 export function Avatar({ user, size = 32 }: { user: Pick<PublicUser, "displayName" | "avatarHue">; size?: number }) {
   const initials = user.displayName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();

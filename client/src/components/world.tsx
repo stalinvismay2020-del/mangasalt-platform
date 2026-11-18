@@ -27,7 +27,7 @@ export function WorldPoster({ m, index = 0, size = "md", rank }: { m: WorldCard;
   return (
     <motion.div initial={{ opacity: 0, y: 24, scale: 0.96 }} whileInView={{ opacity: 1, y: 0, scale: 1 }} viewport={{ once: true, margin: "-30px" }}
       transition={{ duration: 0.55, delay: Math.min(index, 10) * 0.045, ease: [0.16, 1, 0.3, 1] }} style={{ perspective: 800 }}>
-      <Link href={`/title/${m.id}`} ref={ref} onPointerMove={onMove} onPointerLeave={reset} className="group block" data-testid={`card-world-${m.id}`}>
+      <Link href={titleHref(m)} ref={ref} onPointerMove={onMove} onPointerLeave={reset} className="group block" data-testid={`card-world-${m.id}`}>
         <motion.div style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }} whileTap={{ scale: 0.97 }}
           className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted shadow-lg ring-1 ring-white/5 transition-shadow duration-300 group-hover:shadow-2xl"
         >
@@ -49,6 +49,9 @@ export function WorldPoster({ m, index = 0, size = "md", rank }: { m: WorldCard;
   );
 }
 
+/** Hosted MANGASALT series open their own page; catalogue titles open /title/:id. */
+export const titleHref = (m: { id: number; href?: string }) => m.href ?? `/title/${m.id}`;
+
 export function PosterSkel({ size = "md" }: { size?: "sm" | "md" }) {
   return <div><div className="shimmer relative aspect-[2/3] overflow-hidden rounded-xl bg-muted" /><div className={`mt-2 h-3.5 rounded bg-muted ${size === "sm" ? "w-3/4" : "w-4/5"}`} /></div>;
 }
@@ -57,6 +60,7 @@ export function PosterSkel({ size = "md" }: { size?: "sm" | "md" }) {
 export function WorldRail({ title, kicker, icon: Icon, items, loading, ranked, action }: { title: string; kicker?: string; icon?: any; items?: WorldCard[]; loading?: boolean; ranked?: boolean; action?: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const scroll = (d: number) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.8, behavior: "smooth" });
+  if (!loading && items && !items.length) return null;
   return (
     <section>
       <div className="mb-4 flex items-end justify-between gap-3">

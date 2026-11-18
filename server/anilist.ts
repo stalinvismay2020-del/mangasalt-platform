@@ -43,7 +43,7 @@ export type WorldCard = {
   status: string; chapters: number | null; score: number | null; popularity: number; genres: string[]; year: number | null; banner: string | null; blurb: string;
   official: string[];
   /** Which catalogue the title comes from. AniList when missing. */
-  source?: "anilist" | "mangadex";
+  source?: "anilist" | "mangadex" | "mangasalt"; href?: string;
 };
 /** English-language publisher / reading platforms AniList lists for a title. */
 function englishSites(m: any): string[] {

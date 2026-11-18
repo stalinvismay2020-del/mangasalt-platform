@@ -1,3 +1,4 @@
+import { titleHref } from "@/components/world";
 import { useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
@@ -64,7 +65,7 @@ function Ticker({ items }: { items: WorldCard[] }) {
     <div className="relative -mx-4 overflow-hidden border-y border-border/60 bg-card/40 py-2 backdrop-blur sm:mx-0 sm:rounded-full sm:border">
       <motion.div className="flex w-max gap-6 px-4" animate={{ x: ["0%", "-50%"] }} transition={{ duration: 40, repeat: Infinity, ease: "linear" }}>
         {list.map((m, i) => (
-          <Link key={`${m.id}-${i}`} href={`/title/${m.id}`} className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground">
+          <Link key={`${m.id}-${i}`} href={titleHref(m)} className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground">
             <span className="font-display text-primary">#{(i % 10) + 1}</span><img src={asset(m.cover)} alt="" className="h-5 w-4 rounded-sm object-cover" />{m.title}<ArrowUpRight className="h-3 w-3 text-emerald-500" />
           </Link>
         ))}
@@ -88,7 +89,7 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
         style={{ background: items[0]?.color ?? "hsl(var(--primary))" }}
         animate={{ scale: [1, 1.08, 1], opacity: [0.2, 0.32, 0.2] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} />
       {slots.map(({ s, rank }, i) => (
-        <motion.button key={s.id} onClick={() => nav(`/title/${s.id}`)} data-testid={`podium-${rank}`}
+        <motion.button key={s.id} onClick={() => nav(titleHref(s))} data-testid={`podium-${rank}`}
           initial={{ opacity: 0, y: 80, scale: 0.8 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 18, delay: [0.2, 0, 0.35][i] }}
           className="group flex min-w-0 flex-col items-center text-center">
           <motion.div className="relative" animate={reduce ? undefined : { y: [0, lift(rank), 0], rotate: rank === 2 ? [-1, 0.5, -1] : rank === 3 ? [1, -0.5, 1] : [0, 0, 0] }}
@@ -136,7 +137,7 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
   return (
     <motion.li initial={{ opacity: 0, x: -30, filter: "blur(4px)" }} whileInView={{ opacity: 1, x: 0, filter: "blur(0px)" }} viewport={{ once: true, margin: "-20px" }}
       transition={{ type: "spring", stiffness: 260, damping: 26, delay: ((rank - 4) % 8) * 0.04 }}>
-      <Link href={`/title/${s.id}`} className="group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl px-2 py-3 transition-all hover:bg-card hover:shadow-xl sm:gap-4" data-testid={`row-rank-${s.id}`}>
+      <Link href={titleHref(s)} className="group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl px-2 py-3 transition-all hover:bg-card hover:shadow-xl sm:gap-4" data-testid={`row-rank-${s.id}`}>
         <span className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(90deg, ${s.color ?? "hsl(var(--primary))"}22, transparent 60%)` }} />
         <span className="rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums transition-transform duration-300 group-hover:scale-110 sm:w-10 sm:text-4xl">{rank}</span>
         <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={asset(s.cover)} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-lg ring-1 ring-white/5" loading="lazy"
@@ -186,7 +187,7 @@ export default function Trending() {
                 <motion.span key={i} className="inline-block" initial={{ opacity: 0, y: 20, rotate: 8 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ delay: i * 0.04, type: "spring", stiffness: 300, damping: 18 }}>{c}</motion.span>
               ))}
             </h1>
-            <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">The hottest manga, manhwa and manhua worldwide, ranked live from reader activity.</p>
+            <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">The most-read titles, ranked live from reader activity.</p>
           </div>
           <span className="mt-1 flex shrink-0 items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
             <motion.span className="h-1.5 w-1.5 rounded-full bg-primary" animate={{ opacity: [1, 0.2, 1], scale: [1, 1.8, 1] }} transition={{ duration: 1.4, repeat: Infinity }} />Live

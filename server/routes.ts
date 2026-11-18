@@ -5,6 +5,8 @@ import express from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { inAppOnly, hostedHome, hostedSearch, hostedLike, hostedShelf, stripExternal } from "./inapp";
+import { readArchive, savePages, IMPORT_LIMITS } from "./importer";
 import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
 import { coverFile } from "./catalogue-md";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
@@ -63,7 +65,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   // ---------- Google sign-in (Google Identity Services ID token) ----------
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim() || "";
-  app.get("/api/auth/config", (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID || null }));
+  app.get("/api/auth/config", (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID || null, inAppOnly: inAppOnly() }));
   app.post("/api/auth/google", async (req, res) => {
     if (!GOOGLE_CLIENT_ID) return res.status(503).json({ message: "Google sign-in isn't set up yet." });
     const credential = String(req.body?.credential ?? "");
@@ -240,13 +242,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   const wrap = (fn: (req: Request, res: Response) => Promise<any>) => (req: Request, res: Response) =>
     fn(req, res).catch((e: any) => res.status(e.status ?? 502).json({ message: e.message ?? "Catalogue unavailable" }));
   app.get("/api/world/genres", (_req, res) => res.json(WORLD_GENRES));
-  app.get("/api/world/home", wrap(async (_req, res) => res.json(await worldHome())));
+  app.get("/api/world/home", wrap(async (_req, res) => res.json(inAppOnly() ? hostedHome() : await worldHome())));
   app.get("/api/world/search", wrap(async (req, res) => {
     const str = (k: string, n = 80) => (typeof req.query[k] === "string" ? String(req.query[k]).trim().slice(0, n) : "");
-    res.json(await worldSearch({
+    const o = {
       q: str("q") || undefined, genres: str("genres", 300).split(",").filter(Boolean), type: str("type") || undefined,
       status: str("status") || undefined, sort: str("sort") || undefined, period: str("period") || undefined, official: req.query.official === "1", page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
-    }));
+    };
+    res.json(inAppOnly() ? hostedSearch(o) : await worldSearch(o));
   }));
   // MangaDex covers are proxied and cached on disk (MangaDex forbids hotlinking)
   app.get("/api/md/cover/:uuid/:file", wrap(async (req, res) => {
@@ -257,8 +260,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/world/title/:id", wrap(async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: "Title not found" });
-    const t = await worldTitle(id);
+    let t = await worldTitle(id);
     storage.upsertWorld(t);
+    if (inAppOnly()) t = { ...stripExternal(t), recommendations: hostedLike(t.genres ?? [], t.id) };
     res.json({ ...t, ...storage.worldState(t.id, me(req)?.id) });
   }));
   app.post("/api/legal/takedown", (req, res) => {
@@ -275,6 +279,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/me/stats", requireAuth, (req, res) => res.json(readingStats((req as any).user.id)));
   app.get("/api/world/random", wrap(async (req, res) => {
     const type = typeof req.query.type === "string" ? req.query.type : undefined;
+    if (inAppOnly()) {
+      const items = hostedSearch({ type, perPage: 50 }).items;
+      const pick = items[Math.floor(Math.random() * items.length)];
+      return pick ? res.json({ id: pick.id, title: pick.title, href: pick.href }) : res.status(404).json({ message: "Nothing to pick" });
+    }
     const page = 1 + Math.floor(Math.random() * 8);
     const r = await worldSearch({ sort: "popular", type, page, perPage: 30, extras: false });
     const pick = r.items[Math.floor(Math.random() * r.items.length)];
@@ -289,8 +298,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (u && ch) storage.worldRead(u.id, Number(req.params.id), ch);
     res.json({ ok: true });
   });
-  app.get("/api/me/world", requireAuth, (req, res) => res.json(storage.worldLibrary((req as any).user.id)));
-  app.get("/api/world/community", (_req, res) => res.json(storage.mostLikedWorld()));
+  app.get("/api/me/world", requireAuth, (req, res) => res.json(inAppOnly() ? hostedShelf((req as any).user.id) : storage.worldLibrary((req as any).user.id)));
+  app.get("/api/world/community", (_req, res) => res.json(inAppOnly() ? [] : storage.mostLikedWorld()));
   // comments on worldwide titles are stored with a negative series id (-anilistId)
   app.get("/api/world/title/:id/comments", (req, res) => res.json(storage.comments(-Number(req.params.id), me(req)?.id, req.query.chapter ? Number(req.query.chapter) : undefined)));
   app.post("/api/world/title/:id/comments", requireAuth, (req, res) => {
@@ -390,6 +399,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (ch.approval === "pending" && s.approval === "approved") notify(staffIds(), { type: "moderation", title: "New chapter waiting for approval", body: `${s.title} · Chapter ${ch.number}`, link: "/admin/approvals" });
     res.json(ch);
   });
+  // Creators: import a ZIP / CBZ / PDF as one or more chapters. Same review rules as single uploads.
+  app.post("/api/studio/series/:id/import", requireAuth, express.raw({ type: () => true, limit: IMPORT_LIMITS.archiveBytes }), wrap(async (req, res) => {
+    const s = owner(req, res); if (!s) return;
+    const uid = (req as any).user.id;
+    if (!canPublish(uid)) return res.status(403).json({ message: "Publishing is paused on your account. Check your notifications for details." });
+    if (req.query.rightsConfirmed !== "1") return res.status(400).json({ message: "Confirm this is your own work or you have the rights to publish it" });
+    if (!Buffer.isBuffer(req.body) || !req.body.length) return res.status(400).json({ message: "Choose a ZIP, CBZ or PDF file" });
+    const name = typeof req.query.name === "string" ? req.query.name.slice(0, 200) : "upload";
+    const { chapters, problems } = await readArchive(req.body, name, 200);
+    const db = storage.raw();
+    const taken = new Set((db.prepare(`SELECT number FROM chapters WHERE series_id = ?`).all(s.id) as any[]).map((r) => r.number));
+    const skipped = [...problems], created: any[] = [];
+    const single = chapters.length === 1;
+    for (const c of chapters) {
+      const n = single && req.query.number ? Number(req.query.number) : c.number;
+      if (n != null && taken.has(n)) { skipped.push({ name: c.name, reason: `Chapter ${n} already exists` }); continue; }
+      const pages = savePages(uid, c.pages, UP);
+      const ch = studio.addChapter(s.id, { title: (single && typeof req.query.title === "string" && req.query.title.trim().slice(0, 80)) || c.title || "Untitled", pages, number: n ?? undefined });
+      taken.add(ch.number); created.push(ch);
+    }
+    if (created.some((c) => c.approval === "pending") && s.approval === "approved") notify(staffIds(), { type: "moderation", title: "New chapters waiting for approval", body: `${s.title} · ${created.length} imported`, link: "/admin/approvals" });
+    res.status(created.length ? 201 : 400).json({ created, skipped, message: created.length ? undefined : skipped[0]?.reason ?? "Nothing was imported" });
+  }));
   app.patch("/api/studio/chapters/:cid", requireAuth, (req, res) => {
     const uid = (req as any).user.id;
     const c = studio.chapterOwned(uid, Number(req.params.cid));

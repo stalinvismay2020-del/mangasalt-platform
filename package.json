@@ -9,7 +9,9 @@
     "start": "NODE_ENV=production node dist/index.cjs",
     "check": "tsc",
     "db:push": "drizzle-kit push",
-    "make-admin": "tsx script/make-admin.ts"
+    "make-admin": "tsx script/make-admin.ts",
+    "open-library": "tsx script/open-library.ts",
+    "import-chapters": "tsx script/import-chapters.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
@@ -54,6 +56,7 @@
     "embla-carousel-react": "^8.6.0",
     "express": "^5.0.1",
     "express-session": "^1.18.1",
+    "fflate": "^0.8.3",
     "framer-motion": "^11.13.1",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.453.0",
