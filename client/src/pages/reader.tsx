@@ -10,6 +10,7 @@ import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
 import { asset } from "@/components/shared";
 import { Comments } from "@/pages/series";
+import { chapterLabel, fmtNum, type ChapterKind } from "@shared/chapters";
 import type { ChapterData, SeriesDetail } from "@shared/schema";
 
 // ---------- reader preferences (saved on this device) ----------
@@ -21,6 +22,9 @@ const save = (k: string, v: unknown) => { try { localStorage.setItem(k, JSON.str
 const BG: Record<Prefs["bg"], string> = { black: "bg-black text-white", dark: "bg-[hsl(230_12%_10%)] text-white", sepia: "bg-[hsl(36_40%_86%)] text-[hsl(30_30%_15%)]", white: "bg-white text-neutral-900" };
 
 /** A page image with a loading shimmer, fade-in and retry on failure. */
+/** "Chapter 5", "Chapter 5.5", "Prologue", "Extra 3" */
+const L = (x: { number: number; kind?: ChapterKind; numbered?: boolean }) => chapterLabel({ kind: x.kind ?? "regular", number: x.numbered === false ? null : fmtNum(x.number) });
+
 function PageImage({ src, alt, eager, className = "", imgRef, index }: { src: string; alt: string; eager?: boolean; className?: string; imgRef?: (el: HTMLDivElement | null) => void; index: number }) {
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
   const [attempt, setAttempt] = useState(0);
@@ -127,7 +131,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
   // vertical: track the visible page and start auto-next at the end
   useEffect(() => {
     if (!data || paged) return;
-    const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) setPage(Number((e.target as HTMLElement).dataset.i)); }), { rootMargin: "-45% 0px -45% 0px" });
+    const io = new IntersectionObserver((entries) => entries.forEach((e) => { if (e.isIntersecting) setPage(window.scrollY < 40 ? 0 : Number((e.target as HTMLElement).dataset.i)); }), { rootMargin: "-45% 0px -45% 0px" });
     refs.current.forEach((r) => r && io.observe(r));
     const end = new IntersectionObserver(([e]) => { if (e.isIntersecting && prefs.autoNext && data.next && ready.current) setCountdown((c) => c ?? 5); }, { threshold: 0.6 });
     if (endRef.current) end.observe(endRef.current);
@@ -208,11 +212,11 @@ export default function Reader({ params }: { params: { id: string; page?: string
 
   const EndCard = (
     <div ref={endRef} className={`mx-4 mt-8 rounded-2xl border p-5 text-center ${light ? "border-black/10 bg-black/[0.04]" : "border-white/10 bg-white/[0.04]"}`} onClick={(e) => e.stopPropagation()}>
-      <p className="text-xs font-semibold uppercase tracking-widest text-primary">End of episode {c.number}</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-primary">End of {L(c).toLowerCase()}</p>
       <p className="font-display mt-1 text-xl font-semibold">{c.title}</p>
       {next ? (
         <>
-          <Button size="lg" className="mt-4 w-full gap-2 rounded-full sm:w-auto" onClick={() => navigate(`/read/${next.id}`)} data-testid="button-next-episode">Next: Episode {next.number}<ChevronRight className="h-5 w-5" /></Button>
+          <Button size="lg" className="mt-4 w-full gap-2 rounded-full sm:w-auto" onClick={() => navigate(`/read/${next.id}`)} data-testid="button-next-episode">Next: {L(next)}<ChevronRight className="h-5 w-5" /></Button>
           {countdown !== null && <p className="mt-3 text-sm opacity-70" aria-live="polite">Opening next episode in {countdown}s · <button className="font-medium text-primary underline-offset-2 hover:underline" onClick={() => setCountdown(null)}>Cancel</button></p>}
         </>
       ) : <p className="mt-3 text-sm opacity-60">You're all caught up. Follow the series to hear about new episodes.</p>}
@@ -232,7 +236,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
               <Link href={`/series/${s.slug}`} className={iconBtn} aria-label="Back to series" data-testid="button-reader-back"><ArrowLeft className="h-5 w-5" /></Link>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold" data-testid="text-reader-series">{s.title}</p>
-                <p className="truncate text-xs opacity-60" data-testid="text-reader-chapter">Ep. {c.number} · {c.title}</p>
+                <p className="truncate text-xs opacity-60" data-testid="text-reader-chapter">{L(c)}{c.title ? ` · ${c.title}` : ""}</p>
               </div>
               <button onClick={toggleFull} className={`${iconBtn} max-sm:hidden`} aria-label={full ? "Exit full screen" : "Full screen"} data-testid="button-fullscreen">{full ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}</button>
               <button onClick={() => setSettingsOpen(true)} className={iconBtn} aria-label="Reader settings" data-testid="button-reader-settings"><Settings2 className="h-5 w-5" /></button>
@@ -247,7 +251,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
         {!paged ? (
           <div className="mx-auto pb-6 pt-16" style={{ maxWidth: maxW }} onClick={() => setChrome((v) => !v)}>
             {c.pages.map((src, i) => (
-              <PageImage key={src} index={i} src={src} eager={i < 3} alt={`${s.title} episode ${c.number}, page ${i + 1} of ${total}`} imgRef={(el) => (refs.current[i] = el)}
+              <PageImage key={src} index={i} src={src} eager={i < 3} alt={`${s.title} ${L(c).toLowerCase()}, page ${i + 1} of ${total}`} imgRef={(el) => (refs.current[i] = el)}
                 className={`${prefs.gaps ? "mb-3" : ""} ${prefs.fit === "height" ? "flex h-screen items-center justify-center [&>img]:max-h-screen [&>img]:w-auto" : "[&>img]:w-full"}`} />
             ))}
             {EndCard}
@@ -264,11 +268,11 @@ export default function Reader({ params }: { params: { id: string; page?: string
                 {atEnd ? (
                   <div className="w-full max-w-3xl pb-24">
                     {EndCard}
-                    <section className="mx-4 mt-8"><h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-4 w-4 text-primary" />Episode {c.number} discussion</h2><Comments seriesId={s.id} chapterId={c.id} /></section>
+                    <section className="mx-4 mt-8"><h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-4 w-4 text-primary" />{L(c)} discussion</h2><Comments seriesId={s.id} chapterId={c.id} /></section>
                   </div>
                 ) : (
                   <div className="flex h-full max-h-full items-center justify-center gap-0.5" style={{ transform: prefs.zoom !== 100 ? `scale(${prefs.zoom / 100})` : undefined, transformOrigin: "center" }}>
-                    {ordered.map((i) => <PageImage key={c.pages[i]} index={i} src={c.pages[i]} eager alt={`${s.title} episode ${c.number}, page ${i + 1} of ${total}`} className={`h-full ${prefs.mode === "double" ? "max-w-[50vw]" : ""}`} />)}
+                    {ordered.map((i) => <PageImage key={c.pages[i]} index={i} src={c.pages[i]} eager alt={`${s.title} ${L(c).toLowerCase()}, page ${i + 1} of ${total}`} className={`h-full ${prefs.mode === "double" ? "max-w-[50vw]" : ""}`} />)}
                   </div>
                 )}
               </motion.div>
@@ -286,7 +290,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
 
         {!paged && (
           <section className="mx-auto mt-8 max-w-3xl px-4 pb-24" onClick={(e) => e.stopPropagation()}>
-            <h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-4 w-4 text-primary" />Episode {c.number} discussion</h2>
+            <h2 className="flex items-center gap-2 font-semibold"><MessageCircle className="h-4 w-4 text-primary" />{L(c)} discussion</h2>
             <Comments seriesId={s.id} chapterId={c.id} />
           </section>
         )}
@@ -363,11 +367,11 @@ export default function Reader({ params }: { params: { id: string; page?: string
               className="fixed inset-y-0 right-0 z-50 flex w-[86%] max-w-sm flex-col border-l border-white/10 bg-[hsl(0_0%_6%)]/95 text-white backdrop-blur-2xl" data-testid="drawer-episodes">
               <div className="flex items-center justify-between border-b border-white/10 p-4"><p className="font-semibold">Episodes</p><button onClick={() => setListOpen(false)} className="rounded-full p-1.5 hover:bg-white/10" aria-label="Close"><X className="h-5 w-5" /></button></div>
               <ul className="flex-1 overflow-y-auto p-2">
-                {detail.data?.chapters.map((ch) => (
+                {detail.data?.chapters.filter((ch) => ch.pageCount > 0).map((ch) => (
                   <li key={ch.id}>
                     <Link href={`/read/${ch.id}`} onClick={() => setListOpen(false)} className={`flex items-center gap-3 rounded-lg p-2 ${ch.id === c.id ? "bg-primary/15" : "hover:bg-white/5"}`} data-testid={`drawer-chapter-${ch.number}`}>
                       {ch.thumb && <img src={asset(ch.thumb)} alt="" loading="lazy" className="h-10 w-14 rounded object-cover" />}
-                      <div className="min-w-0 flex-1"><p className={`text-xs font-semibold ${ch.id === c.id ? "text-primary" : "text-white/60"}`}>Episode {ch.number}</p><p className="truncate text-sm">{ch.title}</p></div>
+                      <div className="min-w-0 flex-1"><p className={`text-xs font-semibold ${ch.id === c.id ? "text-primary" : "text-white/60"}`}>{L(ch)}</p><p className="truncate text-sm">{ch.title}</p></div>
                       {ch.read && <Check className="h-4 w-4 text-emerald-500" aria-label="Read" />}
                     </Link>
                   </li>

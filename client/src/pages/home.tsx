@@ -138,9 +138,9 @@ function ContinueReading({ items }: { items: WorldShelfItem[] }) {
       <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:px-6">
         {items.map((m, k) => (
           <motion.div key={m.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: k * 0.05 }} className="shrink-0 snap-start">
-            <Link href={m.chapter ? `/mp/${m.id}/${encodeURIComponent(m.chapter)}` : `/title/${m.id}`} className="group flex w-64 items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition hover:-translate-y-0.5 hover:border-primary/50" data-testid={`link-continue-${m.id}`}>
+            <Link href={`/title/${m.id}`} className="group flex w-64 items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition hover:-translate-y-0.5 hover:border-primary/50" data-testid={`link-continue-${m.id}`}>
               <img src={m.cover} alt="" className="h-20 w-14 rounded-lg object-cover" />
-              <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-muted-foreground">{m.chapter ? `Chapter ${m.chapter}` : "Not started"}</p></div>
+              <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-muted-foreground">{!m.chapter ? "Not started" : /^\d/.test(m.chapter) ? `Last opened: chapter ${m.chapter}` : "Opened at the publisher"}</p></div>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition group-hover:scale-110"><Play className="h-4 w-4 fill-current" /></span>
             </Link>
           </motion.div>

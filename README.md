@@ -5,9 +5,9 @@ A manga, manhwa, manhua and comic reading platform. It is built as a website fir
 ## Stack
 - React, Vite, Tailwind, shadcn/ui and Framer Motion on the client
 - Express with SQLite (better-sqlite3) on the server
-- Hash routing: `/`, `/trending`, `/search`, `/search/genre/:genre`, `/search/type/:type`, `/library`, `/profile`, `/title/:anilistId`, `/mp/:anilistId/:chapter`, `/series/:slug`, `/read/:chapterId/:page?`
+- Hash routing: `/`, `/trending`, `/search`, `/search/genre/:genre`, `/search/type/:type`, `/library`, `/profile`, `/title/:anilistId`, `/series/:slug`, `/read/:chapterId/:page?`
 - Catalogue: [AniList GraphQL API](https://graphql.anilist.co) (titles, covers, genres, staff, recommendations)
-- Official chapter index: [MangaDex API](https://api.mangadex.org) external links to official publishers only
+- Official chapter index: [MangaDex API](https://api.mangadex.org) and Tapas, used only to label chapters as licensed externally
 
 ## Run
 ```bash
@@ -18,13 +18,11 @@ npm run build && NODE_ENV=production node dist/index.cjs
 The database (`data.db`) is created and seeded automatically on first start.
 
 ## Content and rights
-MANGASALT only hosts content it has the right to host.
+MANGASALT is an independent platform: its own frontend, backend, database, CMS and reader. It never embeds another site's reader and never copies chapter images from other websites.
 - **Pepper&Carrot** by David Revoy: all 39 official English episodes are self-hosted in `client/public/comics/pepper`, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Source: https://www.peppercarrot.com
-- **Worldwide catalogue** (manga, manhwa, manhua) comes from AniList. Chapters are listed only when an official English publisher has released them.
-- **In-app reading** uses the publisher's own embeddable reader. Today that is MANGA Plus by Shueisha, which offers its free chapters (usually the first few and the latest). Publishers that block embedding (for example VIZ and WEBTOON) are shown as "not in app" with no outbound links.
+- **Creator originals** uploaded through Creator Studio, and chapters an admin uploads with confirmed distribution rights.
+- **Worldwide catalogue** (manga, manhwa, manhua, non-adult) comes from AniList. It is a discovery catalogue: titles appear whether or not they have an English edition, and the Search page has an "Official English only" filter.
 - AniList's API is free for non-commercial use; commercial use needs AniList's permission.
-
-Copyrighted manga is never mirrored, re-hosted or streamed from fan scanlations.
 
 ## Creator Studio
 
@@ -38,20 +36,40 @@ Creators publish their own manga, manhwa, manhua or comics at `/#/studio`.
 
 Only creator-owned or properly licensed work may be uploaded. Scanlations and images taken from other sites are not allowed.
 
-## Official English only
+## Chapter system
 
-Every title in the catalogue must have a verified official English edition:
+Every chapter has one status, decided on the server (`server/chapters.ts`):
 
-1. AniList's English-language publisher / reading-platform links (WEBTOON, Tapas, MANGA Plus, VIZ, K MANGA, Yen Press...).
-2. If AniList lists none, MangaDex's "official English" link is checked before the title is hidden.
+| Status | Meaning | Card action |
+|---|---|---|
+| Available to read | Hosted on MANGASALT, published, has pages, release time passed | Read / Continue |
+| Coming soon | Hosted and published, release time in the future | Release date |
+| Licensed externally | Published by an official publisher, not hosted here | Publisher link only when the URL is on the verified publisher list |
+| Unavailable | The publisher withdrew it | None |
+| Not yet uploaded | Known to exist, no authorised copy here | None |
 
-Results are cached in the `official_en` table (negatives are re-checked weekly). Titles without an official English edition are removed from Home, Search, Trending and recommendations, and their pages show "Not available in official English".
+A Read button is shown only for "Available to read". Drafts, future chapters and chapters without pages return 404 to readers.
 
-## In-app chapters
+**Search** (`shared/chapters.ts`, unit tests in `tests/chapters.test.ts`, run `npx tsx tests/chapters.test.ts`):
+exact number first ("5" finds 5, never 15 or 175), then decimals of that number (5.5), then numbers starting with it (50-59), then special kinds (prologue, extra, special, side story, oneshot) and titles. "Chapter 59", "ch59" and "ep 59" all work, spaces are ignored, and a missing number shows an empty state with a clear button.
 
-- **MANGA Plus** (free official chapters, from the MangaDex publisher index) and **Tapas** (every official episode) open in their publisher's own reader inside MANGASALT. Tapas episodes are tagged Free, Wait-free or Coins.
-- WEBTOON, VIZ, K MANGA, Tappytoon, Comikey and INKR block their reader inside other sites, so those titles show which platform publishes them instead.
-- No chapter images are copied from other websites.
+**API**
+- `GET /api/series/by-slug/:slug/chapters` and `GET /api/world/title/:anilistId/chapters`, with params `q`, `status`, `sort=asc|desc|newest`, `lang`, `page`, `limit`. Results are paginated, so long series never load every chapter at once. Reader pages lazy-load.
+
+## Admin: Chapters tab
+
+`/#/admin/chapters`. Reading needs moderator or admin; writing needs admin. Every action is written to the moderation log.
+- Per series: distribution rights, staff-only permission evidence, and an optional AniList ID. Linking an AniList ID makes the hosted chapters readable from that catalogue title's page.
+- Create and edit chapters: number (decimals allowed), kind, numbered or not, title, language, release date and time, pages (upload, reorder, remove). Pages go to `uploads/u<userId>/`, PNG/JPEG/WebP only, and must belong to the uploader.
+- Publishing requires ticking the rights confirmation. You can preview a draft, unpublish it, or schedule it for later.
+- Delete asks you to type `delete <number>`, and removes the chapter's uploaded files.
+- Make a staff account: `npm run make-admin -- <username> [admin|moderator]`.
+
+**Migrations.** These run automatically at start-up (in `server/storage.ts`) and keep existing data. They add `chapters.kind`, `language`, `published`, `numbered` and `updated_at`, plus `series.anilist_id` and `rights_note`, with indexes.
+
+## Library
+
+Continue reading, history, Recently updated (last 30 days), unread counts, bookmarks with their page, favourites and shelves. All of it is stored on the server, so it syncs across devices.
 
 ## Extras
 

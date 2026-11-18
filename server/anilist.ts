@@ -1,5 +1,5 @@
 // AniList GraphQL client: worldwide manga / manhwa / manhua catalogue (metadata only).
-// Chapters of licensed titles are NOT hosted here. Only titles with a verified official English edition are shown.
+// Catalogue metadata only. Chapters of licensed titles are NOT hosted here; titles show which official English publisher (if any) carries them.
 import { officialCache } from "./storage";
 import { mangadexEnglish } from "./mangadex";
 const ENDPOINT = "https://graphql.anilist.co";
@@ -83,8 +83,18 @@ export async function onlyOfficial(cards: WorldCard[], waitMs = 3500): Promise<W
   const res = await Promise.all(cards.map((c) => Promise.race([verify(c), new Promise<null>((r) => setTimeout(() => r(null), waitMs))])));
   return res.filter((x): x is WorldCard => !!x);
 }
+/** Keep every title; fill in the official English publisher when AniList or the cache knows it. Never hides a title. */
+let warming = 0;
+export function annotate(cards: WorldCard[]): WorldCard[] {
+  return cards.map((c) => {
+    if (c.official.length) { officialCache.set(c.id, c.official); return c; }
+    const known = officialCache.get(c.id);
+    if (known === undefined && warming < 40) { warming++; verify(c).catch(() => {}).finally(() => warming--); } // warm the cache in the background
+    return known ? { ...c, official: known } : c;
+  });
+}
 
-export async function worldSearch(o: { q?: string; genres?: string[]; type?: string; status?: string; sort?: string; period?: string; page?: number; perPage?: number }) {
+export async function worldSearch(o: { official?: boolean; q?: string; genres?: string[]; type?: string; status?: string; sort?: string; period?: string; page?: number; perPage?: number }) {
   const sort = SORTS[o.sort ?? (o.q ? "match" : "trending")] ?? SORTS.trending;
   const vars: any = { page: o.page ?? 1, perPage: Math.min(o.perPage ?? 24, 50), sort: o.q || sort[0] !== "SEARCH_MATCH" ? sort : ["POPULARITY_DESC"] };
   if (o.q) vars.search = o.q;
@@ -103,7 +113,8 @@ export async function worldSearch(o: { q?: string; genres?: string[]; type?: str
     Page(page:$page, perPage:$perPage) { pageInfo { hasNextPage total currentPage }
       media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, popularity_greater:$minPop, startDate_greater:$after, startDate_lesser:$before, format_not:NOVEL) { ${CARD} } } }`;
   const d = await gql(q, vars);
-  return { items: await onlyOfficial(d.Page.media.map(card)), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
+  const cards = d.Page.media.map(card);
+  return { items: o.official ? await onlyOfficial(cards) : annotate(cards), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
 }
 
 export async function worldTitle(id: number) {
@@ -115,8 +126,7 @@ export async function worldTitle(id: number) {
   const d = await gql(q, { id });
   const m = d.Media;
   if (!m || m.isAdult) throw Object.assign(new Error("Title not found"), { status: 404 });
-  const base = (await onlyOfficial([card(m)], 8000))[0];
-  if (!base) throw Object.assign(new Error("This title has no official English edition yet"), { status: 404, code: "NO_OFFICIAL_EN" });
+  const base = (await onlyOfficial([card(m)], 6000))[0] ?? card(m);
   const tapasUrl = (m.externalLinks ?? []).find((l: any) => /tapas\.io\/series\//.test(l.url ?? "") && l.language === "English")?.url ?? null;
   return {
     ...base, tapasUrl,
@@ -124,8 +134,14 @@ export async function worldTitle(id: number) {
     description: clean(m.description),
     tags: (m.tags ?? []).filter((t: any) => !t.isMediaSpoiler).slice(0, 8).map((t: any) => t.name),
     staff: (m.staff?.edges ?? []).map((e: any) => ({ name: e.node.name.full, role: e.role })),
-    readLinks: base.official.map((site) => ({ site })),
-    recommendations: await onlyOfficial((m.recommendations?.nodes ?? []).map((n: any) => n.mediaRecommendation).filter((x: any) => x && !x.isAdult).map(card), 2500),
+    readLinks: (() => {
+      // publisher links AniList lists for the English edition (curated); only http(s) links, no social accounts
+      const out: { site: string; url: string | null }[] = [];
+      for (const l of m.externalLinks ?? []) if (l.type !== "SOCIAL" && l.language === "English" && /^https:\/\//.test(l.url ?? "") && !out.some((o) => o.site === l.site)) out.push({ site: l.site === "Official Site" ? "Official English site" : l.site, url: l.url });
+      for (const site of base.official) if (!out.some((o) => o.site === site)) out.push({ site, url: null });
+      return out;
+    })(),
+    recommendations: annotate((m.recommendations?.nodes ?? []).map((n: any) => n.mediaRecommendation).filter((x: any) => x && !x.isAdult).map(card)),
   };
 }
 

@@ -147,8 +147,8 @@ function SeriesFields({ v, set }: { v: Fields; set: (p: Partial<Fields>) => void
 }
 
 // ---------------- Page uploader ----------------
-type Pg = { key: string; path?: string; preview: string; status: "uploading" | "done" | "error" };
-function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]) => Pg[]) => void }) {
+export type Pg = { key: string; path?: string; preview: string; status: "uploading" | "done" | "error" };
+export function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]) => Pg[]) => void }) {
   const ref = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const { toast } = useToast();

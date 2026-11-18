@@ -1,4 +1,4 @@
-import { Switch, Route, Router } from "wouter";
+import { Switch, Route, Router, Redirect } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,7 +13,6 @@ import Profile from "@/pages/profile";
 import SeriesPage from "@/pages/series";
 import Reader from "@/pages/reader";
 import TitlePage from "@/pages/title";
-import OfficialReader from "@/pages/official-reader";
 import { StudioHome, StudioNew, StudioSeries } from "@/pages/studio";
 import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge, AmbientBackdrop, BackToTop } from "@/components/shared";
 import { useEffect } from "react";
@@ -54,7 +53,10 @@ function ScrollTop() {
 
 function Shell() {
   const [loc] = useLocation();
-  if (loc.startsWith("/read/") || loc.startsWith("/mp/")) return (
+  // old links to the removed embedded publisher reader go to the title's chapter list instead
+  const mp = loc.match(/^\/mp\/(\d+)/);
+  if (mp) return <Redirect to={`/title/${mp[1]}`} />;
+  if (loc.startsWith("/read/")) return (
     <>
       <ScrollTop />
       <ToastBridge />
@@ -63,7 +65,6 @@ function Shell() {
           <Switch>
             <Route path="/read/:id/:page" component={Reader} />
             <Route path="/read/:id" component={Reader} />
-            <Route path="/mp/:id/:key" component={OfficialReader} />
           </Switch>
         </div>
       </ErrorBoundary>

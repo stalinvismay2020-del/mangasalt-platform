@@ -104,7 +104,7 @@ export function SeriesPoster({ s, index = 0, onOpen, size = "md" }: { s: SeriesC
         <img src={asset(s.cover)} alt={`${s.title} cover`} loading="lazy" width={600} height={900}
           className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-80 transition group-hover:opacity-100" />
-        <div className="absolute left-2 top-2"><TypeBadge type={s.type} /></div>
+        <div className="absolute left-2 top-2 flex flex-col items-start gap-1"><TypeBadge type={s.type} />{!!s.unread && <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground shadow" data-testid={`badge-unread-${s.id}`}>{s.unread} new</span>}</div>
         <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100"><LikeButton s={s} variant="icon" /></div>
         <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-2.5 text-xs text-white/85">
           <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5 fill-primary text-primary" />{compact(s.likes)}</span>

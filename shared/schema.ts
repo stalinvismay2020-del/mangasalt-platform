@@ -161,6 +161,8 @@ export type SeriesCard = {
   year: number;
   readable: boolean;
   lastChapter?: { id: number; number: number; title: string } | null;
+  /** chapters not yet opened, only counted once the reader has started the series */
+  unread?: number;
 };
 
 export type CreatorCard = PublicUser & { seriesCount: number; followers: number; totalLikes: number; followedByMe: boolean };
@@ -188,6 +190,7 @@ export type HomeData = {
 };
 
 export type LibraryData = {
+  bookmarks?: { chapterId: number; page: number; number: number; seriesTitle: string; cover: string }[];
   continueReading: SeriesCard[];
   saved: SeriesCard[];
   following: SeriesCard[];
@@ -195,13 +198,14 @@ export type LibraryData = {
   counts: { likes: number; comments: number; read: number };
 };
 
-export type ChapterListItem = { id: number; number: number; title: string; pageCount: number; createdAt: number; read: boolean; thumb: string | null };
+export type ChapterListItem = { id: number; number: number; kind: import("./chapters").ChapterKind; numbered: boolean; language: string; title: string; pageCount: number; createdAt: number; read: boolean; thumb: string | null };
 export type SeriesDetail = { series: SeriesCard & { approval?: string; regions?: string }; region?: { blocked: boolean; country: string | null; label: string }; chapters: ChapterListItem[]; resume: { id: number; number: number } | null; bookmarks: { chapterId: number; page: number; number: number; title: string }[] };
+export type ChapterNav = { id: number; number: number; kind: import("./chapters").ChapterKind; numbered: boolean };
 export type ChapterData = {
-  chapter: { id: number; number: number; title: string; pages: string[] };
+  chapter: { id: number; number: number; title: string; pages: string[]; kind: import("./chapters").ChapterKind; numbered: boolean; language: string; published: boolean };
   series: { id: number; slug: string; title: string; type: string; rights: string; cover: string; creator: PublicUser; chapterCount: number };
-  prev: { id: number; number: number } | null;
-  next: { id: number; number: number } | null;
+  prev: ChapterNav | null;
+  next: ChapterNav | null;
   bookmark: number | null;
 };
 export type CommentItem = { id: number; body: string; spoiler: boolean; likes: number; likedByMe: boolean; createdAt: number; user: PublicUser; parentId: number | null; replies: CommentItem[] };

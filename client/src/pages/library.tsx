@@ -2,7 +2,7 @@ import { useLocation, Link } from "wouter";
 import type { WorldShelfItem } from "@shared/world";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Clock, Bookmark, BookOpen, Upload, Heart } from "lucide-react";
+import { Clock, Bookmark, BookOpen, Upload, Heart, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHead, EmptyBox, SeriesPoster, asset } from "@/components/shared";
 import { useApp, compact } from "@/lib/app-context";
@@ -23,7 +23,7 @@ function ContinueCard({ s }: { s: SeriesCard }) {
       <img src={asset(s.cover)} alt="" className="h-20 w-14 rounded-md object-cover" />
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold group-hover:text-primary">{s.title}</p>
-        <p className="truncate text-xs text-muted-foreground">{s.lastChapter ? `Ep. ${n} of ${s.chapterCount} · ${s.lastChapter.title}` : `Not started · ${s.chapterCount} episodes`}</p>
+        <p className="truncate text-xs text-muted-foreground">{s.lastChapter ? `Ep. ${n} of ${s.chapterCount}${s.unread ? ` · ${s.unread} unread` : ""} · ${s.lastChapter.title}` : `Not started · ${s.chapterCount} episodes`}</p>
         <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(4, (n / Math.max(1, s.chapterCount)) * 100)}%` }} /></div>
       </div>
     </button>
@@ -32,10 +32,10 @@ function ContinueCard({ s }: { s: SeriesCard }) {
 
 function ShelfCard({ m }: { m: WorldShelfItem }) {
   return (
-    <Link href={m.chapter ? `/mp/${m.id}/${encodeURIComponent(m.chapter)}` : `/title/${m.id}`} data-testid={`card-world-continue-${m.id}`}
+    <Link href={`/title/${m.id}`} data-testid={`card-world-continue-${m.id}`}
       className="group flex w-72 shrink-0 snap-start items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40">
       <img src={m.cover} alt="" className="h-20 w-14 rounded-md object-cover" />
-      <div className="min-w-0 flex-1"><p className="truncate font-semibold group-hover:text-primary">{m.title}</p><p className="truncate text-xs text-muted-foreground">{m.chapter ? `Chapter ${m.chapter}` : "Not started"}</p></div>
+      <div className="min-w-0 flex-1"><p className="truncate font-semibold group-hover:text-primary">{m.title}</p><p className="truncate text-xs text-muted-foreground">{!m.chapter ? "Not started" : /^\d/.test(m.chapter) ? `Last opened: chapter ${m.chapter}` : "Opened at the publisher"}</p></div>
     </Link>
   );
 }
@@ -68,6 +68,31 @@ export default function Library() {
           : !d?.continueReading.length && !reading.length ? <EmptyBox>Nothing in progress. Open any chapter and it will show up here.</EmptyBox>
           : <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 sm:scroll-px-6 gap-3 overflow-x-auto px-4 sm:-mx-6 sm:px-6">{reading.map((m) => <ShelfCard key={`w${m.id}`} m={m} />)}{d?.continueReading.map((s) => <ContinueCard key={s.id} s={s} />)}</div>}
       </section>
+
+      {user && d && (() => {
+        const seen = new Set<number>(), DAY = 86400000;
+        const updated = [...d.continueReading, ...d.saved, ...d.following]
+          .filter((s) => !seen.has(s.id) && seen.add(s.id) && s.latestChapterAt > Date.now() - 30 * DAY)
+          .sort((a, b) => b.latestChapterAt - a.latestChapterAt).slice(0, 12);
+        return updated.length > 0 && (
+          <section data-testid="section-recently-updated">
+            <Head icon={Sparkles} title="Recently updated" />
+            <p className="-mt-1 mb-3 text-sm text-muted-foreground">New chapters in the last 30 days from series you read, saved or follow.</p>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{updated.map((s, k) => <SeriesPoster key={s.id} s={s} index={k} onOpen={setOpenSeries} size="sm" />)}</div>
+          </section>
+        );
+      })()}
+
+      {user && !!d?.bookmarks?.length && (
+        <section data-testid="section-bookmarks">
+          <Head icon={Bookmark} title="Bookmarks" />
+          <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{d.bookmarks.map((b) => (
+            <li key={`${b.chapterId}-${b.page}`}><Link href={`/read/${b.chapterId}/${b.page}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 hover:border-primary/50" data-testid={`link-bookmark-${b.chapterId}`}>
+              <img src={asset(b.cover)} alt="" className="h-12 w-9 rounded object-cover" />
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{b.seriesTitle}</span><span className="text-xs text-muted-foreground">Ep. {b.number} · page {b.page + 1}</span></span>
+            </Link></li>))}</ul>
+        </section>
+      )}
 
       <ShelvesSection />
 

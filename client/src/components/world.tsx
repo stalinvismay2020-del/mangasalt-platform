@@ -37,6 +37,7 @@ export function WorldPoster({ m, index = 0, size = "md", rank }: { m: WorldCard;
           <div className="absolute left-2 top-2"><TypeBadge type={m.type} /></div>
           {rank && <span className="font-display absolute -left-1 bottom-0 text-6xl font-bold leading-none text-white/95 [text-shadow:0_4px_20px_rgba(0,0,0,.7)]">{rank}</span>}
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-2 p-2 text-[11px] font-medium text-white/90">
+            {!rank && m.official?.length ? <span className="mr-auto rounded-full bg-emerald-600/85 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur" title={`Official English: ${m.official.slice(0, 3).join(", ")}`} data-testid={`badge-official-${m.id}`}>Official EN</span> : null}
             {m.score ? <span className="flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 backdrop-blur"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{(m.score / 10).toFixed(1)}</span> : null}
           </div>
           <span className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-500 group-hover:scale-x-100" style={{ background: m.color ?? undefined }} />

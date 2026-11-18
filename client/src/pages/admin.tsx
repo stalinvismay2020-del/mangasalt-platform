@@ -3,7 +3,8 @@ import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { LayoutDashboard, CheckSquare, Users, PenTool, BookOpen, Scale, Flag, ShieldAlert, HardDrive, Activity, DatabaseBackup, ScrollText, Megaphone, Loader2, Check, X, Eye, Download, Trash2, RefreshCw, BadgeCheck, Ban, Search, ShieldCheck, LogOut, Globe2 } from "lucide-react";
+import { LayoutDashboard, CheckSquare, Users, PenTool, BookOpen, Scale, Flag, ShieldAlert, HardDrive, Activity, DatabaseBackup, ScrollText, Megaphone, Loader2, Check, X, Eye, Download, Trash2, RefreshCw, BadgeCheck, Ban, Search, ShieldCheck, LogOut, Globe2, Layers } from "lucide-react";
+import ChaptersTab from "@/pages/admin-chapters";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,7 +17,7 @@ import { isAdmin, isStaff, regionLabel, COUNTRIES, parseRegions, type AdminOverv
 
 const TABS = [
   ["overview", "Overview", LayoutDashboard, false], ["approvals", "Approvals", CheckSquare, false], ["users", "Users", Users, false], ["creators", "Creators", PenTool, false],
-  ["series", "Series", BookOpen, false], ["copyright", "Copyright", Scale, false], ["reports", "Reports", Flag, false], ["spam", "Spam", ShieldAlert, false],
+  ["series", "Series", BookOpen, false], ["chapters", "Chapters", Layers, false], ["copyright", "Copyright", Scale, false], ["reports", "Reports", Flag, false], ["spam", "Spam", ShieldAlert, false],
   ["uploads", "Uploads", HardDrive, true], ["health", "Server health", Activity, true], ["backups", "Backups", DatabaseBackup, true], ["logs", "Moderation logs", ScrollText, false], ["broadcast", "Broadcast", Megaphone, true],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -498,7 +499,7 @@ export default function AdminPage({ params }: { params: { tab?: string } }) {
   const go = (t: Tab) => navigate(`/admin/${t}`);
   const qu = overview.data?.queues;
   const badge: Partial<Record<Tab, number>> = qu ? { approvals: qu.pendingSeries + qu.pendingChapters, reports: qu.openReports, copyright: qu.openTakedowns, spam: qu.spam } : {};
-  const Body = { overview: () => <Overview go={go} />, approvals: Approvals, users: UsersTab, creators: CreatorsTab, series: SeriesTab, copyright: CopyrightTab, reports: ReportsTab, spam: SpamTab, uploads: UploadsTab, health: HealthTab, backups: BackupsTab, logs: LogsTab, broadcast: BroadcastTab }[tab];
+  const Body = { overview: () => <Overview go={go} />, approvals: Approvals, users: UsersTab, creators: CreatorsTab, series: SeriesTab, chapters: ChaptersTab, copyright: CopyrightTab, reports: ReportsTab, spam: SpamTab, uploads: UploadsTab, health: HealthTab, backups: BackupsTab, logs: LogsTab, broadcast: BroadcastTab }[tab];
   return (
     <div className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6">
       <div className="mb-4 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /><h1 className="font-display text-2xl font-semibold">Admin</h1><Pill>{user.role}</Pill></div>

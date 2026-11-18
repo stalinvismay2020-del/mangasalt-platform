@@ -36,7 +36,7 @@ function Overview() {
       <ul className="mt-3 space-y-2">
         <No>Show fan scanlations or images taken from unofficial manga sites.</No>
         <No>Remove publisher paywalls, ads or "wait-free" timers.</No>
-        <No>List a title unless it has a verified official English edition.</No>
+        <No>Show a chapter as readable here unless MANGASALT hosts it with the rights to distribute it.</No>
         <No>Sell access to catalogue data from AniList or MangaDex.</No>
       </ul>
       <H>Rights holders</H>

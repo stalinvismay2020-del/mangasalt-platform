@@ -11,7 +11,11 @@ import { TypeBadge } from "@/components/shared";
 import { WorldLike, WorldSave, WorldPoster, STATUS_LABEL } from "@/components/world";
 import { Comments } from "@/pages/series";
 import { compact } from "@/lib/app-context";
-import type { WorldDetail, WorldChapters } from "@shared/world";
+import type { WorldDetail } from "@shared/world";
+import type { ChapterPage } from "@shared/chapters";
+import { chapterLabel } from "@shared/chapters";
+import { ChapterBrowser } from "@/components/chapters";
+import { NotFoundView } from "@/pages/not-found";
 
 const ORIGIN: Record<string, string> = { manga: "Japan", manhwa: "Korea", manhua: "China" };
 
@@ -19,22 +23,16 @@ export default function TitlePage() {
   const { id } = useParams<{ id: string }>();
   const [, nav] = useLocation();
   const { data: t, isLoading, isError, error, refetch } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
-  const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`] });
+  const chUrl = `/api/world/title/${id}/chapters`;
+  const ch = useQuery<ChapterPage>({ queryKey: [chUrl, { status: "available", limit: "100" }], staleTime: 60_000, enabled: !!id });
   const [more, setMore] = useState(false);
 
   if (isError && ![404, 400].includes((error as any)?.status)) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground" role="alert"><p>This title couldn't load. Check your connection and try again.</p><button onClick={() => refetch()} className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Try again</button></div>;
-  if (isError) return (
-    <div className="mx-auto max-w-xl px-4 py-24 text-center">
-      <Globe2 className="mx-auto h-9 w-9 text-primary" />
-      <p className="font-display mt-3 text-2xl">Not available in official English</p>
-      <p className="mt-2 text-sm text-muted-foreground">MANGASALT only lists titles with an official English release. We checked AniList and MangaDex and couldn't find one for this title.</p>
-      <Link href="/search" className="mt-5 inline-block rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Browse official titles</Link>
-    </div>
-  );
+  if (isError) return <NotFoundView embedded title="Title not found" message="This title isn't in the catalogue, or it was removed." />;
   if (isLoading || !t) return <TitleSkeleton />;
 
-  const readable = ch.data?.chapters.filter((c) => c.inApp) ?? [];
-  const resume = t.lastChapter ? readable.find((c) => c.key === t.lastChapter) : undefined;
+  const readable = ch.data?.items ?? [];
+  const resume = [...readable].reverse().find((c) => c.read || (c.page ?? 0) > 0);
   const start = resume ?? readable[0];
   const accent = t.color ?? "hsl(var(--primary))";
 
@@ -75,12 +73,12 @@ export default function TitlePage() {
 
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2 md:justify-start">
               {start ? (
-                <Button size="lg" className="glow-primary gap-2 rounded-full px-6" onClick={() => nav(`/mp/${t.id}/${encodeURIComponent(start.key)}`)} data-testid="button-start-reading">
-                  <Play className="h-4 w-4 fill-current" />{resume ? `Continue Ch. ${resume.number}` : `Read Ch. ${start.number}`}
+                <Button size="lg" className="glow-primary gap-2 rounded-full px-6" onClick={() => nav(`/read/${start.chapterId}`)} data-testid="button-start-reading">
+                  <Play className="h-4 w-4 fill-current" />{resume ? `Continue ${chapterLabel(resume)}` : `Read ${chapterLabel(start)}`}
                 </Button>
               ) : (
                 <Button size="lg" variant="secondary" className="gap-2 rounded-full px-6" disabled={ch.isLoading} onClick={() => document.getElementById("chapters")?.scrollIntoView({ behavior: "smooth" })}>
-                  <BookOpen className="h-4 w-4" />{ch.isLoading ? "Checking chapters…" : "Chapters"}
+                  <BookOpen className="h-4 w-4" />{ch.isLoading ? "Checking chapters…" : "See chapters"}
                 </Button>
               )}
               <WorldLike id={t.id} liked={t.likedByMe} likes={t.likes} />
@@ -116,7 +114,15 @@ export default function TitlePage() {
           </motion.div>
         </div>
 
-        <ChapterList id={t.id} data={ch.data} loading={ch.isLoading} read={t.readChapters} last={t.lastChapter} />
+        {!ch.isLoading && !readable.length && (
+          <div className="mt-8 flex gap-3 rounded-2xl border border-border bg-card p-4 text-sm" data-testid="notice-not-hosted">
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p className="text-muted-foreground">{t.official.length
+              ? <>MANGASALT doesn't host this title. It's officially published in English by {t.official.slice(0, 3).join(", ")}{t.readLinks.some((l) => l.url) ? <>: {t.readLinks.filter((l) => l.url).slice(0, 3).map((l, i) => <span key={l.site}>{i ? ", " : ""}<a href={l.url!} target="_blank" rel="noopener noreferrer" className="font-medium text-primary underline-offset-2 hover:underline">{l.site}</a></span>)}</> : ""}.</>
+              : "MANGASALT doesn't host this title yet, and we don't know of an official English edition. Save it to hear when an authorised edition arrives."}</p>
+          </div>
+        )}
+        <ChapterBrowser endpoint={chUrl} worldId={t.id} />
 
         <section className="mt-12">
           <h2 className="font-display text-xl font-semibold sm:text-2xl">Discussion</h2>
@@ -134,97 +140,6 @@ export default function TitlePage() {
       </div>
     </div>
   );
-}
-
-function ChapterList({ id, data, loading, read, last }: { id: number; data?: WorldChapters; loading: boolean; read: string[]; last: string | null }) {
-  const [, nav] = useLocation();
-  const [q, setQ] = useState("");
-  const [desc, setDesc] = useState(false);
-  const [all, setAll] = useState(false);
-  const [onlyApp, setOnlyApp] = useState(false);
-  const list = useMemo(() => {
-    let l = data?.chapters ?? [];
-    if (onlyApp) l = l.filter((c) => c.inApp);
-    if (q.trim()) { const s = q.trim().toLowerCase(); l = l.filter((c) => c.number.includes(s) || (c.title ?? "").toLowerCase().includes(s)); }
-    return desc ? [...l].reverse() : l;
-  }, [data, q, desc, onlyApp]);
-  const shown = all || q ? list : list.slice(0, 30);
-  const readSet = new Set(read);
-
-  return (
-    <section id="chapters" className="mt-12 scroll-mt-20">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-xl font-semibold sm:text-2xl">Chapters</h2>
-          {data && <p className="mt-1 text-sm text-muted-foreground" data-testid="text-chapter-stats">{data.total} official English chapters · <span className="text-primary">{data.inApp} open in MANGASALT</span>{data.chapters.some((c) => c.access === "wait" || c.access === "coins") ? <> · {data.chapters.filter((c) => c.access === "free").length} free now</> : null}</p>}
-        </div>
-        {data && data.total > 0 && (
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <div className="relative flex-1 sm:w-48">
-              <SearchIcon className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chapter no." className="h-9 rounded-full pl-8" data-testid="input-chapter-search" />
-            </div>
-            <Button variant={onlyApp ? "default" : "outline"} size="sm" className="h-9 rounded-full" onClick={() => setOnlyApp(!onlyApp)} data-testid="button-only-app">Readable</Button>
-            <Button variant="outline" size="icon" className="h-9 w-9 rounded-full" onClick={() => setDesc(!desc)} aria-label="Reverse order" data-testid="button-chapter-sort"><ArrowDownUp className="h-4 w-4" /></Button>
-          </div>
-        )}
-      </div>
-
-      {loading && <div className="mt-4 space-y-2">{Array.from({ length: 6 }).map((_, k) => <div key={k} className="shimmer relative h-14 overflow-hidden rounded-xl bg-muted" />)}</div>}
-
-      {data && data.inApp === 0 && (
-        <div className="mt-4 flex gap-3 rounded-2xl border border-border bg-card p-4 text-sm" data-testid="notice-no-inapp">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-          <p className="text-muted-foreground">
-            {data.publishers?.length ? `This title is officially published in English on ${data.publishers.slice(0, 3).join(", ")}. ${data.publishers.length === 1 ? "That publisher doesn't" : "Those publishers don't"} allow their reader inside other apps, so its chapters can't open in MANGASALT yet.` : "We couldn't find official English chapters for this title yet."}
-            {" "}Save it and you'll see it here the moment a licensed in-app edition becomes available.
-          </p>
-        </div>
-      )}
-
-      {data && data.total > 0 && (
-        <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-          <AnimatePresence initial={false}>
-            {shown.map((c, k) => {
-              const isRead = readSet.has(c.key), current = last === c.key;
-              const inner = (
-                <>
-                  <span className={`grid h-10 w-12 shrink-0 place-items-center rounded-lg text-sm font-bold ${c.inApp ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>{c.number}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{c.title || `Chapter ${c.number}`}</span>
-                    <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">{c.publisher ?? "Official"}{c.publishedAt ? ` · ${new Date(c.publishedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}` : ""}
-                      {c.inApp && <AccessTag a={c.access} />}</span>
-                  </span>
-                  {c.inApp ? (current ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold uppercase text-primary-foreground">Reading</span>
-                    : isRead ? <CheckCircle2 className="h-4 w-4 text-primary" /> : <Play className="h-4 w-4 text-primary" />)
-                    : <span className="flex items-center gap-1 text-[11px] text-muted-foreground"><Lock className="h-3 w-3" />Not in app</span>}
-                </>
-              );
-              return (
-                <motion.li key={c.key} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ delay: Math.min(k, 12) * 0.02 }}>
-                  {c.inApp ? (
-                    <button onClick={() => nav(`/mp/${id}/${encodeURIComponent(c.key)}`)} className={`flex w-full items-center gap-3 rounded-xl border bg-card p-2 pr-3 text-left transition hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-lg ${current ? "border-primary/60" : "border-border"} ${isRead ? "opacity-70" : ""}`} data-testid={`button-chapter-${c.key}`}>{inner}</button>
-                  ) : (
-                    <div className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl border border-dashed border-border/70 p-2 pr-3 opacity-55" aria-disabled data-testid={`row-chapter-locked-${c.key}`}>{inner}</div>
-                  )}
-                </motion.li>
-              );
-            })}
-          </AnimatePresence>
-        </ul>
-      )}
-      {!all && !q && list.length > 30 && (
-        <Button variant="outline" className="mt-4 w-full gap-1 rounded-full" onClick={() => setAll(true)} data-testid="button-show-all-chapters">Show all {list.length} chapters<ChevronDown className="h-4 w-4" /></Button>
-      )}
-      {data && data.total > 0 && shown.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No chapter matches “{q}”.</p>}
-    </section>
-  );
-}
-
-function AccessTag({ a }: { a: string | null }) {
-  if (a === "wait") return <span className="inline-flex items-center gap-0.5 rounded bg-sky-500/15 px-1.5 text-[10px] font-semibold text-sky-600 dark:text-sky-300"><Clock className="h-2.5 w-2.5" />Wait-free</span>;
-  if (a === "coins") return <span className="inline-flex items-center gap-0.5 rounded bg-amber-500/15 px-1.5 text-[10px] font-semibold text-amber-600 dark:text-amber-300"><Coins className="h-2.5 w-2.5" />Coins</span>;
-  return <span className="rounded bg-emerald-500/15 px-1.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-300">Free</span>;
 }
 
 function ShareButton({ title }: { title: string }) {

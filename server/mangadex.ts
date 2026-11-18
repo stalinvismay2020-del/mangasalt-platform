@@ -17,7 +17,7 @@ async function get(path: string) {
   return v;
 }
 
-export type OfficialChapter = { key: string; number: string; title: string | null; publishedAt: string; sources: { publisher: string; url: string; embeddable: boolean }[] };
+export type OfficialChapter = { key: string; number: string; title: string | null; publishedAt: string; sources: { publisher: string; url: string; embeddable: boolean }[]; unavailable: boolean };
 
 const mdIdCache = new Map<number, string | null>();
 const mdEngCache = new Map<number, string | null>();
@@ -60,8 +60,8 @@ export async function officialChapters(anilistId: number, titles: string[]) {
     const num = a.chapter ?? "Oneshot";
     const src = { publisher: publisherName(g, a.externalUrl), url: a.externalUrl, embeddable: /mangaplus\.shueisha\.co\.jp/.test(a.externalUrl) };
     const ex = byNum.get(num);
-    if (ex) { if (!ex.sources.some((s) => s.url === src.url)) ex.sources.push(src); if (!ex.title && a.title) ex.title = a.title; }
-    else byNum.set(num, { key: num, number: num, title: a.title || null, publishedAt: a.publishAt, sources: [src] });
+    if (ex) { if (!ex.sources.some((s) => s.url === src.url)) ex.sources.push(src); if (!ex.title && a.title) ex.title = a.title; if (!a.isUnavailable) ex.unavailable = false; }
+    else byNum.set(num, { key: num, number: num, title: a.title || null, publishedAt: a.publishAt, sources: [src], unavailable: !!a.isUnavailable });
   }
   const chapters = Array.from(byNum.values()).sort((x, y) => (parseFloat(x.number) || 0) - (parseFloat(y.number) || 0));
   chapters.forEach((c) => c.sources.sort((a, b) => Number(b.embeddable) - Number(a.embeddable)));

@@ -43,6 +43,7 @@ export default function Search() {
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("popular");
   const [period, setPeriod] = useState("");
+  const [official, setOfficial] = useState("");
   const [showGenres, setShowGenres] = useState(!!params.genre);
   useEffect(() => { if (params.genre) { setGenres([decodeURIComponent(params.genre)]); setShowGenres(true); } }, [params.genre]);
   useEffect(() => { if (params.type) setType(params.type); }, [params.type]);
@@ -50,7 +51,7 @@ export default function Search() {
 
   const allGenres = useQuery<string[]>({ queryKey: ["/api/world/genres"] });
   const effSort = dq && sort === "popular" ? "match" : sort;
-  const filters = { q: dq, type, genres: genres.join(","), status, sort: effSort, period };
+  const filters = { q: dq, type, genres: genres.join(","), status, sort: effSort, period, official };
   const res = useInfiniteQuery<WorldPage>({
     queryKey: ["/api/world/search", filters],
     initialPageParam: 1,
@@ -72,12 +73,12 @@ export default function Search() {
   }, [res.hasNextPage, res.isFetchingNextPage, items.length]);
 
   const toggleGenre = (g: string) => setGenres((l) => (l.includes(g) ? l.filter((x) => x !== g) : [...l, g]));
-  const reset = () => { setQ(""); setType(""); setGenres([]); setStatus(""); setSort("popular"); setPeriod(""); };
-  const active = [type, status, period, sort !== "popular" ? sort : ""].filter(Boolean).length + genres.length;
+  const reset = () => { setQ(""); setType(""); setGenres([]); setStatus(""); setSort("popular"); setPeriod(""); setOfficial(""); };
+  const active = [type, status, period, official, sort !== "popular" ? sort : ""].filter(Boolean).length + genres.length;
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
-      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua with an official English edition. Chapters open in the app wherever the publisher allows it." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
+      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua in the catalogue. Chapters are readable here only when MANGASALT hosts an authorised copy." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
       <label className="flex h-12 items-center gap-3 rounded-2xl border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40">
         <SearchIcon className="h-5 w-5 text-muted-foreground" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search One Piece, Solo Leveling, Omniscient Reader…"
@@ -91,6 +92,7 @@ export default function Search() {
         <ChipRow label="Status" id="status" value={status} options={STATUSES} onChange={setStatus} />
         <ChipRow label="Sort" id="sort" value={sort} options={SORTS} onChange={setSort} />
         <ChipRow label="Released" id="period" value={period} options={PERIODS} onChange={setPeriod} />
+        <ChipRow label="Edition" id="official" value={official} options={[["", "All titles"], ["1", "Official English only"]]} onChange={setOfficial} />
         <div className="flex items-center gap-3">
           <span className="w-16 shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground sm:w-20">Genres</span>
           <button onClick={() => setShowGenres(!showGenres)} aria-expanded={showGenres} className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium sm:text-sm ${genres.length ? "border border-primary bg-primary/15 text-primary" : "glass-btn lift text-muted-foreground hover:text-foreground"}`} data-testid="button-toggle-genres">
@@ -128,7 +130,7 @@ export default function Search() {
       )}
 
       <p className="mb-4 mt-6 text-sm text-muted-foreground" data-testid="text-result-count">
-        {res.isLoading ? "Searching…" : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} official English title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
+        {res.isLoading ? "Searching…" : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} ${official ? "official English " : ""}title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
       </p>
       <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 lg:grid-cols-6">
         {res.isLoading ? Array.from({ length: 12 }).map((_, k) => <PosterSkel key={k} size="sm" />)

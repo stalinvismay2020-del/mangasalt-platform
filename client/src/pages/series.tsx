@@ -12,12 +12,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useApp, compact, timeAgo, rightsLabel, TYPE_ORIGIN } from "@/lib/app-context";
 import { asset, Avatar, TypeBadge, LikeButton, SaveButton, FollowButton } from "@/components/shared";
 import type { SeriesDetail, CommentItem } from "@shared/schema";
+import { ChapterBrowser } from "@/components/chapters";
 import { FavouriteButton, AddToShelf, ChapterCounter, ReportButton, RegionBanner } from "@/components/platform";
 
 export default function SeriesPage({ params }: { params: { slug: string } }) {
   const { data, isLoading, error, refetch } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
   const [tab, setTab] = useState<"chapters" | "comments">("chapters");
-  const [asc, setAsc] = useState(true);
   const [more, setMore] = useState(false);
   const [, navigate] = useLocation();
 
@@ -28,7 +28,6 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
   const readable = chapters.filter((c) => c.pageCount > 0);
   const first = readable[0];
   const target = resume ?? (first ? { id: first.id, number: first.number } : null);
-  const list = asc ? chapters : [...chapters].reverse();
   const readCount = chapters.filter((c) => c.read).length;
 
   return (
@@ -115,11 +114,6 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
               {tab === v && <motion.span layoutId="series-tab" className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-primary" />}
             </button>
           ))}
-          {tab === "chapters" && (
-            <button onClick={() => setAsc(!asc)} className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" data-testid="button-sort-chapters">
-              <ArrowDownUp className="h-3.5 w-3.5" />{asc ? "Oldest first" : "Newest first"}
-            </button>
-          )}
         </div>
 
         <AnimatePresence mode="wait">
@@ -131,29 +125,7 @@ export default function SeriesPage({ params }: { params: { slug: string } }) {
                   <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted"><motion.div className="h-full rounded-full bg-primary" initial={{ width: 0 }} animate={{ width: `${(readCount / chapters.length) * 100}%` }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }} /></div>
                 </div>
               )}
-              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
-                {list.map((c, i) => {
-                  const ok = c.pageCount > 0;
-                  const inner = (
-                    <>
-                      {c.thumb ? <img src={asset(c.thumb)} alt="" loading="lazy" className="h-16 w-24 shrink-0 rounded-md object-cover ring-1 ring-white/5" />
-                        : <span className="flex h-16 w-24 shrink-0 items-center justify-center rounded-md bg-muted text-xs text-muted-foreground">Soon</span>}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold text-primary">Episode {c.number}</p>
-                        <p className={`truncate font-medium ${c.read ? "text-muted-foreground" : ""}`}>{c.title}</p>
-                        <p className="text-xs text-muted-foreground">{ok ? `${c.pageCount} pages · ` : ""}{new Date(c.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</p>
-                      </div>
-                      {c.read && <Check className="h-4 w-4 shrink-0 text-emerald-500" aria-label="Read" />}
-                    </>
-                  );
-                  return (
-                    <motion.li key={c.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 12) * 0.025 }}>
-                      {ok ? <Link href={`/read/${c.id}`} className="flex items-center gap-3 rounded-xl border border-border/70 bg-card/40 p-2 transition hover:border-primary/50 hover:bg-card" data-testid={`link-chapter-${c.number}`}>{inner}</Link>
-                        : <div className="flex items-center gap-3 rounded-xl border border-border/50 p-2 opacity-60">{inner}</div>}
-                    </motion.li>
-                  );
-                })}
-              </ul>
+              <ChapterBrowser endpoint={`/api/series/by-slug/${s.slug}/chapters`} embedded />
             </motion.div>
           ) : (
             <motion.div key="cm" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>

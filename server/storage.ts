@@ -59,6 +59,15 @@ addColumn("chapters", "approval", "TEXT NOT NULL DEFAULT 'approved'");
 addColumn("chapters", "review_note", "TEXT");
 if (addColumn("chapters", "publish_at", "INTEGER NOT NULL DEFAULT 0")) sqlite.exec(`UPDATE chapters SET publish_at = created_at`);
 addColumn("chapters", "notified", "INTEGER NOT NULL DEFAULT 1");
+// chapter management: decimal numbers (5.5) are stored as REAL in the existing number column
+addColumn("chapters", "kind", "TEXT NOT NULL DEFAULT 'regular'"); // regular | prologue | side | extra | special | oneshot
+addColumn("chapters", "language", "TEXT NOT NULL DEFAULT 'en'");
+addColumn("chapters", "published", "INTEGER NOT NULL DEFAULT 1"); // 0 = draft / unpublished by staff or creator
+addColumn("chapters", "numbered", "INTEGER NOT NULL DEFAULT 1"); // 0 = label without a number ("Prologue"); number is then only the reading order
+addColumn("chapters", "updated_at", "INTEGER NOT NULL DEFAULT 0");
+addColumn("series", "anilist_id", "INTEGER"); // link to the catalogue title this hosted series is the authorised edition of
+addColumn("series", "rights_note", "TEXT NOT NULL DEFAULT ''"); // licence / permission evidence, staff only
+sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_chapters_series ON chapters(series_id, number); CREATE INDEX IF NOT EXISTS idx_series_anilist ON series(anilist_id)`);
 addColumn("reading_lists", "visibility", "TEXT NOT NULL DEFAULT 'private'"); // private | public
 addColumn("reading_lists", "description", "TEXT NOT NULL DEFAULT ''");
 if (addColumn("reading_lists", "kind", "TEXT NOT NULL DEFAULT 'custom'")) sqlite.exec(`UPDATE reading_lists SET kind = 'saved' WHERE name = 'Saved'`);
@@ -67,7 +76,7 @@ addColumn("reading_lists", "updated_at", "INTEGER NOT NULL DEFAULT 0");
 addColumn("reading_list_items", "created_at", "INTEGER NOT NULL DEFAULT 0");
 addColumn("follows", "created_at", "INTEGER NOT NULL DEFAULT 0");
 /** A chapter is public once it is approved and its scheduled release time has passed. */
-export const CH_VISIBLE = `c.approval = 'approved' AND c.publish_at <= (CAST(strftime('%s','now') AS INTEGER) * 1000)`;
+export const CH_VISIBLE = `c.approval = 'approved' AND c.published = 1 AND c.publish_at <= CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER)`;
 export const SERIES_VISIBLE = `s.approval = 'approved' AND s.removed = 0`;
 
 // ---------- helpers ----------
@@ -92,7 +101,9 @@ SELECT s.*, u.id AS u_id, u.username AS u_username, u.display_name AS u_display_
   (SELECT COUNT(*) FROM series_likes l WHERE l.series_id = s.id AND l.created_at > @since) AS recent_likes,
   (SELECT COUNT(*) FROM chapters c WHERE c.series_id = s.id AND ${CH_VISIBLE}) AS chapter_count,
   (SELECT COALESCE(MAX(number),0) FROM chapters c WHERE c.series_id = s.id AND ${CH_VISIBLE}) AS latest_chapter,
-  (SELECT COALESCE(MAX(created_at),0) FROM chapters c WHERE c.series_id = s.id AND ${CH_VISIBLE}) AS latest_chapter_at,
+  (SELECT COALESCE(MAX(c.publish_at),0) FROM chapters c WHERE c.series_id = s.id AND ${CH_VISIBLE}) AS latest_chapter_at,
+  (SELECT COUNT(*) FROM chapters c WHERE c.series_id = s.id AND c.pages != '[]' AND ${CH_VISIBLE} AND NOT EXISTS (SELECT 1 FROM history h WHERE h.user_id = @me AND h.chapter_id = c.id)) AS unread,
+  EXISTS(SELECT 1 FROM history h WHERE h.user_id = @me AND h.series_id = s.id AND h.chapter_id IS NOT NULL) AS started,
   (SELECT COUNT(*) FROM comments cm WHERE cm.series_id = s.id AND cm.created_at > @since) AS recent_comments,
   EXISTS(SELECT 1 FROM series_likes l WHERE l.series_id = s.id AND l.user_id = @me) AS liked_by_me,
   EXISTS(SELECT 1 FROM reading_list_items ri JOIN reading_lists rl ON rl.id = ri.list_id WHERE ri.series_id = s.id AND rl.user_id = @me AND rl.kind = 'saved') AS saved_by_me,
@@ -104,7 +115,7 @@ function toCard(r: any): SeriesCard {
   return {
     id: r.id, slug: r.slug, title: r.title, type: r.type, genres: JSON.parse(r.genres), synopsis: r.synopsis, cover: r.cover,
     status: r.status, views: r.views, rights: r.rights, likes: r.likes, recentLikes: r.recent_likes, chapterCount: r.chapter_count,
-    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year, readable: !!r.readable,
+    latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year, readable: !!r.readable, unread: r.started ? r.unread : 0,
     creator: { id: r.u_id, username: r.u_username, displayName: r.u_display_name, bio: r.u_bio, avatarHue: r.u_avatar_hue, isCreator: r.u_is_creator },
   };
 }
@@ -270,7 +281,8 @@ export class Storage {
     const followedCreators = sqlite.prepare(`SELECT u.* FROM follows f JOIN users u ON u.id = f.target_id WHERE f.user_id = ? AND f.target_type = 'creator'`).all(userId).map(pub);
     const following = sqlite.prepare(`SELECT target_id FROM follows WHERE user_id = ? AND target_type = 'series'`).all(userId).map((r: any) => r.target_id);
     const counts: any = sqlite.prepare(`SELECT (SELECT COUNT(*) FROM series_likes WHERE user_id = @u) AS likes, (SELECT COUNT(*) FROM comments WHERE user_id = @u) AS comments, (SELECT COUNT(DISTINCT series_id) FROM history WHERE user_id = @u) AS read`).get({ u: userId });
-    return { continueReading: this.recentlyViewed(userId, 10), saved: this.cardsByIds(saved, userId), following: this.cardsByIds(following, userId), followedCreators, counts };
+    const bookmarks = sqlite.prepare(`SELECT b.chapter_id AS chapterId, b.page, c.number, s.title AS seriesTitle, s.cover FROM bookmarks b JOIN chapters c ON c.id = b.chapter_id JOIN series s ON s.id = b.series_id WHERE b.user_id = ? AND ${CH_VISIBLE} AND ${SERIES_VISIBLE} ORDER BY b.created_at DESC LIMIT 30`).all(userId);
+    return { continueReading: this.recentlyViewed(userId, 10), saved: this.cardsByIds(saved, userId), following: this.cardsByIds(following, userId), followedCreators, counts, bookmarks };
   }
   genres() {
     const set = new Set<string>();
@@ -286,9 +298,9 @@ export class Storage {
     if ((r.approval !== "approved" || r.removed) && !privileged) return undefined;
     const card = toCard(r);
     const read = new Set(me ? sqlite.prepare(`SELECT DISTINCT chapter_id FROM history WHERE user_id = ? AND series_id = ? AND chapter_id IS NOT NULL`).all(me, card.id).map((x: any) => x.chapter_id) : []);
-    const chapters = sqlite.prepare(`SELECT id, number, title, pages, created_at FROM chapters c WHERE series_id = ? AND ${CH_VISIBLE} ORDER BY number ASC`).all(card.id).map((c: any) => {
+    const chapters = sqlite.prepare(`SELECT id, number, title, pages, created_at, kind, numbered, language FROM chapters c WHERE series_id = ? AND ${CH_VISIBLE} ORDER BY number ASC, id ASC`).all(card.id).map((c: any) => {
       const pages: string[] = JSON.parse(c.pages);
-      return { id: c.id, number: c.number, title: c.title, pageCount: pages.length, createdAt: c.created_at, read: read.has(c.id), thumb: pages.length ? pages[0].replace(/p\d+\.webp$/, "cover.webp") : null };
+      return { id: c.id, number: c.number, title: c.title, kind: c.kind, numbered: !!c.numbered, language: c.language, pageCount: pages.length, createdAt: c.created_at, read: read.has(c.id), thumb: pages.length ? pages[0].replace(/p\d+\.webp$/, "cover.webp") : null };
     });
     const resume: any = me ? sqlite.prepare(`SELECT c.id, c.number FROM history h JOIN chapters c ON c.id = h.chapter_id WHERE h.user_id = ? AND h.series_id = ? ORDER BY h.viewed_at DESC LIMIT 1`).get(me, card.id) : null;
     const bookmarks = me ? sqlite.prepare(`SELECT b.chapter_id AS chapterId, b.page, c.number, c.title FROM bookmarks b JOIN chapters c ON c.id = b.chapter_id WHERE b.user_id = ? AND b.series_id = ? ORDER BY c.number`).all(me, card.id) as any[] : [];
@@ -298,14 +310,17 @@ export class Storage {
     const c: any = sqlite.prepare(`SELECT * FROM chapters WHERE id = ?`).get(id);
     if (!c) return undefined;
     const s: any = sqlite.prepare(`SELECT s.*, u.username, u.display_name, u.bio, u.avatar_hue, u.is_creator, (SELECT COUNT(*) FROM chapters c WHERE c.series_id = s.id AND ${CH_VISIBLE}) AS cc FROM series s JOIN users u ON u.id = s.creator_id WHERE s.id = ?`).get(c.series_id);
-    const prev = sqlite.prepare(`SELECT id, number FROM chapters c WHERE series_id = ? AND number < ? AND ${CH_VISIBLE} ORDER BY number DESC LIMIT 1`).get(c.series_id, c.number) as any;
-    const next = sqlite.prepare(`SELECT id, number FROM chapters c WHERE series_id = ? AND number > ? AND ${CH_VISIBLE} ORDER BY number ASC LIMIT 1`).get(c.series_id, c.number) as any;
+    // prev/next within the same language, only chapters that actually have pages
+    const nav = `c.series_id = ? AND c.language = ? AND c.pages != '[]' AND ${CH_VISIBLE}`;
+    const prev = sqlite.prepare(`SELECT id, number, kind, numbered FROM chapters c WHERE ${nav} AND (c.number < ? OR (c.number = ? AND c.id < ?)) ORDER BY c.number DESC, c.id DESC LIMIT 1`).get(c.series_id, c.language, c.number, c.number, c.id) as any;
+    const next = sqlite.prepare(`SELECT id, number, kind, numbered FROM chapters c WHERE ${nav} AND (c.number > ? OR (c.number = ? AND c.id > ?)) ORDER BY c.number ASC, c.id ASC LIMIT 1`).get(c.series_id, c.language, c.number, c.number, c.id) as any;
     const bm: any = me ? sqlite.prepare(`SELECT page FROM bookmarks WHERE user_id = ? AND chapter_id = ?`).get(me, id) : null;
     return {
-      chapter: { id: c.id, number: c.number, title: c.title, pages: JSON.parse(c.pages) },
+      chapter: { id: c.id, number: c.number, title: c.title, pages: JSON.parse(c.pages), kind: c.kind, numbered: !!c.numbered, language: c.language, published: c.published === 1 },
       series: { id: s.id, slug: s.slug, title: s.title, type: s.type, rights: s.rights, cover: s.cover, chapterCount: s.cc,
         creator: { id: s.creator_id, username: s.username, displayName: s.display_name, bio: s.bio, avatarHue: s.avatar_hue, isCreator: s.is_creator } },
-      prev: prev ?? null, next: next ?? null, bookmark: bm ? bm.page : null,
+      prev: prev ? { id: prev.id, number: prev.number, kind: prev.kind, numbered: !!prev.numbered } : null,
+      next: next ? { id: next.id, number: next.number, kind: next.kind, numbered: !!next.numbered } : null, bookmark: bm ? bm.page : null,
     };
   }
   readChapter(userId: number, chapterId: number) {

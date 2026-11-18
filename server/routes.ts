@@ -7,8 +7,7 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
-import { tapasEpisodes } from "./tapas";
-import { officialChapters } from "./mangadex";
+import { registerChapterRoutes } from "./chapters";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 import { registerSocialRoutes, notify, staffIds, countryOf, seriesRegion, badges } from "./social";
 import { registerAdminRoutes, installMetrics, bootstrapAdmins, spamCheck, flagIfSpam, fileReport, modlog } from "./admin";
@@ -34,6 +33,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   bootstrapAdmins();
   registerSocialRoutes(app, { me, requireAuth });
   registerAdminRoutes(app, { me });
+  registerChapterRoutes(app, { me });
   const db = storage.raw();
 
   // ---------- auth ----------
@@ -153,10 +153,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   const chapterGate = (req: Request, res: Response, id: number) => {
     const u = me(req);
-    const c: any = db.prepare(`SELECT c.approval, c.publish_at, s.id AS sid, s.approval AS s_approval, s.removed, s.creator_id FROM chapters c JOIN series s ON s.id = c.series_id WHERE c.id = ?`).get(id);
+    const c: any = db.prepare(`SELECT c.approval, c.published, c.pages, c.publish_at, s.id AS sid, s.approval AS s_approval, s.removed, s.creator_id FROM chapters c JOIN series s ON s.id = c.series_id WHERE c.id = ?`).get(id);
     if (!c) { res.status(404).json({ message: "Chapter not found" }); return false; }
     const privileged = isStaff(u) || c.creator_id === u?.id;
-    if (!privileged && (c.approval !== "approved" || c.publish_at > Date.now() || c.s_approval !== "approved" || c.removed)) { res.status(404).json({ message: c.publish_at > Date.now() && c.approval === "approved" ? "This chapter hasn't been released yet" : "Chapter not found" }); return false; }
+    if (!privileged && (c.approval !== "approved" || c.published !== 1 || c.pages === "[]" || c.publish_at > Date.now() || c.s_approval !== "approved" || c.removed)) { res.status(404).json({ message: c.publish_at > Date.now() && c.approval === "approved" && c.published === 1 ? "This chapter hasn't been released yet" : "Chapter not found" }); return false; }
     const region = seriesRegion(c.sid, countryOf(req, u));
     if (region.blocked && !privileged) { res.status(451).json({ message: `This series isn't available in your region (${region.label}).` }); return false; }
     return true;
@@ -244,7 +244,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const str = (k: string, n = 80) => (typeof req.query[k] === "string" ? String(req.query[k]).trim().slice(0, n) : "");
     res.json(await worldSearch({
       q: str("q") || undefined, genres: str("genres", 300).split(",").filter(Boolean), type: str("type") || undefined,
-      status: str("status") || undefined, sort: str("sort") || undefined, period: str("period") || undefined, page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
+      status: str("status") || undefined, sort: str("sort") || undefined, period: str("period") || undefined, official: req.query.official === "1", page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
     }));
   }));
   app.get("/api/world/title/:id", wrap(async (req, res) => {
@@ -252,23 +252,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const t = await worldTitle(id);
     storage.upsertWorld(t);
     res.json({ ...t, ...storage.worldState(id, me(req)?.id) });
-  }));
-  app.get("/api/world/title/:id/chapters", wrap(async (req, res) => {
-    const id = Number(req.params.id);
-    const t: any = await worldTitle(id);
-    const [r, tapas] = await Promise.all([
-      officialChapters(id, [t.title, t.altTitle ?? ""]).catch(() => ({ found: false, chapters: [] as any[] })),
-      t.tapasUrl ? tapasEpisodes(t.tapasUrl).catch(() => []) : Promise.resolve([]),
-    ]);
-    // Official chapters from MangaDex's publisher index (MANGA Plus etc). Only embeddable publishers open in the app.
-    const md = r.chapters.map((c: any) => {
-      const src = c.sources.find((s: any) => s.embeddable);
-      return { key: c.key, number: c.number, title: c.title, publishedAt: c.publishedAt, inApp: !!src, publisher: src?.publisher ?? c.sources[0]?.publisher ?? null, src: src?.url ?? null, access: src ? "free" : null };
-    });
-    // Tapas: every official episode opens in Tapas's own reader inside the app.
-    const tp = tapas.map((e) => ({ key: e.key, number: e.number, title: e.title, publishedAt: e.publishedAt, inApp: true, publisher: "Tapas", src: e.src, access: e.access }));
-    const chapters = tp.length > md.filter((c: any) => c.inApp).length ? tp : md;
-    res.json({ found: r.found || tp.length > 0, total: chapters.length, inApp: chapters.filter((c: any) => c.inApp).length, chapters, publishers: t.official });
   }));
   app.post("/api/legal/takedown", (req, res) => {
     const b = req.body ?? {};
