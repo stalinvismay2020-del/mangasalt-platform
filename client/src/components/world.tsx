@@ -6,7 +6,7 @@ import { Star, Heart, Bookmark, BookOpen, ChevronLeft, ChevronRight } from "luci
 import { Button } from "@/components/ui/button";
 import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp, compact } from "@/lib/app-context";
-import { TypeBadge } from "@/components/shared";
+import { TypeBadge, asset } from "@/components/shared";
 import type { WorldCard } from "@shared/world";
 
 export const STATUS_LABEL: Record<string, string> = { ongoing: "Releasing", completed: "Completed", hiatus: "On hiatus", upcoming: "Upcoming", cancelled: "Cancelled" };
@@ -31,10 +31,10 @@ export function WorldPoster({ m, index = 0, size = "md", rank }: { m: WorldCard;
         <motion.div style={{ rotateX: rx, rotateY: ry, transformStyle: "preserve-3d" }} whileTap={{ scale: 0.97 }}
           className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted shadow-lg ring-1 ring-white/5 transition-shadow duration-300 group-hover:shadow-2xl"
         >
-          <img src={m.cover} alt={`${m.title} cover`} loading="lazy" className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.07]" />
+          <img src={asset(m.cover)} alt={`${m.title} cover`} loading="lazy" className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.07]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0" />
           <motion.div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: glare }} />
-          <div className="absolute left-2 top-2"><TypeBadge type={m.type} /></div>
+          <div className="absolute left-2 top-2 flex flex-col items-start gap-1"><TypeBadge type={m.type} />{m.source === "mangadex" && <span className="rounded-full bg-black/60 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/90 backdrop-blur" title="Catalogue data from MangaDex" data-testid={`badge-md-${m.id}`}>MangaDex</span>}</div>
           {rank && <span className="font-display absolute -left-1 bottom-0 text-6xl font-bold leading-none text-white/95 [text-shadow:0_4px_20px_rgba(0,0,0,.7)]">{rank}</span>}
           <div className="absolute inset-x-0 bottom-0 flex items-center justify-end gap-2 p-2 text-[11px] font-medium text-white/90">
             {!rank && m.official?.length ? <span className="mr-auto rounded-full bg-emerald-600/85 px-1.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur" title={`Official English: ${m.official.slice(0, 3).join(", ")}`} data-testid={`badge-official-${m.id}`}>Official EN</span> : null}

@@ -14,7 +14,7 @@ import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
 import type { PublicUser, SeriesCard } from "@shared/schema";
 import { NotificationBell } from "@/components/platform";
 
-const API_ASSET = (p: string) => (p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/") ? `.${p}` : p);
+const API_ASSET = (p: string) => (!p ? p : p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/api/") ? `${API_BASE}${p}` : p.startsWith("/") ? `.${p}` : p);
 export const asset = API_ASSET;
 
 // ---------- Avatar ----------

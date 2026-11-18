@@ -2,6 +2,7 @@
 // Catalogue metadata only. Chapters of licensed titles are NOT hosted here; titles show which official English publisher (if any) carries them.
 import { officialCache } from "./storage";
 import { mangadexEnglish } from "./mangadex";
+import { mdExtras, mdTitle, isMdId, anilistTwin } from "./catalogue-md";
 const ENDPOINT = "https://graphql.anilist.co";
 const TTL = 10 * 60 * 1000;
 const cache = new Map<string, { t: number; v: any }>();
@@ -41,6 +42,8 @@ export type WorldCard = {
   id: number; title: string; altTitle: string | null; cover: string; color: string | null; type: "manga" | "manhwa" | "manhua" | "comic";
   status: string; chapters: number | null; score: number | null; popularity: number; genres: string[]; year: number | null; banner: string | null; blurb: string;
   official: string[];
+  /** Which catalogue the title comes from. AniList when missing. */
+  source?: "anilist" | "mangadex";
 };
 /** English-language publisher / reading platforms AniList lists for a title. */
 function englishSites(m: any): string[] {
@@ -60,7 +63,7 @@ function card(m: any): WorldCard {
     id: m.id, title: m.title.english || m.title.romaji, altTitle: m.title.english && m.title.romaji !== m.title.english ? m.title.romaji : null,
     cover: m.coverImage.extraLarge || m.coverImage.large, color: m.coverImage.color, type: typeOf(m.countryOfOrigin), status: statusOf(m.status),
     chapters: m.chapters, score: m.averageScore, popularity: m.popularity, genres: m.genres.filter((g: string) => SAFE_GENRES.includes(g)), year: m.startDate?.year ?? null,
-    banner: m.bannerImage ?? null, blurb: clean(m.description).slice(0, 320), official: englishSites(m),
+    banner: m.bannerImage ?? null, blurb: clean(m.description).slice(0, 320), official: englishSites(m), source: "anilist",
   };
 }
 
@@ -94,7 +97,7 @@ export function annotate(cards: WorldCard[]): WorldCard[] {
   });
 }
 
-export async function worldSearch(o: { official?: boolean; q?: string; genres?: string[]; type?: string; status?: string; sort?: string; period?: string; page?: number; perPage?: number }) {
+export async function worldSearch(o: { extras?: boolean; official?: boolean; q?: string; genres?: string[]; type?: string; status?: string; sort?: string; period?: string; page?: number; perPage?: number }) {
   const sort = SORTS[o.sort ?? (o.q ? "match" : "trending")] ?? SORTS.trending;
   const vars: any = { page: o.page ?? 1, perPage: Math.min(o.perPage ?? 24, 50), sort: o.q || sort[0] !== "SEARCH_MATCH" ? sort : ["POPULARITY_DESC"] };
   if (o.q) vars.search = o.q;
@@ -113,11 +116,26 @@ export async function worldSearch(o: { official?: boolean; q?: string; genres?: 
     Page(page:$page, perPage:$perPage) { pageInfo { hasNextPage total currentPage }
       media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, popularity_greater:$minPop, startDate_greater:$after, startDate_lesser:$before, format_not:NOVEL) { ${CARD} } } }`;
   const d = await gql(q, vars);
-  const cards = d.Page.media.map(card);
-  return { items: o.official ? await onlyOfficial(cards) : annotate(cards), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
+  const cards: WorldCard[] = d.Page.media.map(card);
+  const items = o.official ? await onlyOfficial(cards) : annotate(cards);
+  // Second source: MangaDex titles AniList doesn't have (deduplicated, metadata only). Never blocks the page for long.
+  let extra: WorldCard[] = [];
+  if (o.extras !== false) {
+    const names = d.Page.media.flatMap((m: any) => [m.title.english, m.title.romaji]).filter(Boolean);
+    extra = await Promise.race([
+      mdExtras(o, gql, names, o.q ? 12 : 6).catch(() => [] as WorldCard[]),
+      new Promise<WorldCard[]>((r) => setTimeout(() => r([]), o.q ? 6000 : 3500)),
+    ]);
+  }
+  return { items: [...items, ...extra], hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total + extra.length, extra: extra.length };
 }
 
-export async function worldTitle(id: number) {
+export async function worldTitle(id: number): Promise<any> {
+  if (isMdId(id)) {
+    const twin = anilistTwin(id);
+    if (twin) return { ...(await worldTitle(twin)), movedTo: twin };
+    return mdTitle(id);
+  }
   const q = `query ($id:Int) { Media(id:$id, type:MANGA) { ${CARD} isAdult bannerImage description(asHtml:false) volumes synonyms
     tags { name rank isMediaSpoiler } siteUrl
     staff(perPage:4, sort:RELEVANCE) { edges { role node { name { full } } } }
@@ -146,7 +164,7 @@ export async function worldTitle(id: number) {
 }
 
 export async function worldHome() {
-  const sec = (vars: any) => worldSearch({ perPage: 20, ...vars }).then((r) => r.items.slice(0, 15));
+  const sec = (vars: any) => worldSearch({ perPage: 20, extras: false, ...vars }).then((r) => r.items.slice(0, 15));
   const [trending, manhwa, manga, manhua, top] = await Promise.all([
     sec({ sort: "trending" }), sec({ sort: "trending", type: "manhwa" }), sec({ sort: "popular", type: "manga" }), sec({ sort: "trending", type: "manhua" }), sec({ sort: "score" }),
   ]);

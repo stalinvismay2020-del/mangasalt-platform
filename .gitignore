@@ -21,3 +21,4 @@ uploads/
 
 # automatic database backups
 backups/
+cache/

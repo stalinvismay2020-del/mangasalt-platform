@@ -46,6 +46,11 @@ function publisherName(group: string | undefined, url: string) {
 export async function officialChapters(anilistId: number, titles: string[]) {
   const md = await findMangaDexId(anilistId, titles);
   if (!md) return { found: false, chapters: [] as OfficialChapter[] };
+  return officialChaptersByMd(md);
+}
+
+/** Official-publisher chapters (externalUrl only) of a MangaDex title. Scanlation chapters are skipped. */
+export async function officialChaptersByMd(md: string) {
   const all: any[] = [];
   for (let offset = 0; offset < 3000; offset += 500) {
     const d = await get(`/manga/${md}/feed?translatedLanguage[]=en&limit=500&offset=${offset}&order[chapter]=asc&includes[]=scanlation_group&contentRating[]=safe&contentRating[]=suggestive`);

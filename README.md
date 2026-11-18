@@ -76,3 +76,14 @@ Continue reading, history, Recently updated (last 30 days), unread counts, bookm
 - Animated day/night switch with a circular screen reveal.
 - Transparent glass navigation bar and reader controls (keyboard: arrows for prev/next, H hide controls).
 - Reading stats with a daily streak on Profile, "Surprise me" random pick, share button on title pages.
+
+## MangaDex catalogue (second source)
+
+AniList is the main catalogue. Search results also include titles from the [MangaDex API](https://api.mangadex.org/docs/) that AniList is missing.
+
+- **Metadata only.** We use titles, alt names, descriptions, tags, staff and cover art. MangaDex-hosted scan chapters are never fetched or shown. These titles show as *Licensed externally* (with a link to the publisher, e.g. Yen Press) or *Not yet uploaded*, and never get a Read button.
+- **Dedupe.** A MangaDex title is dropped if it is already on AniList. We check its AniList link, then its MAL id (AniList `idMal_in`), then a normalised title match from a batched AniList search. Results are cached for a week in the `md_titles` table. If AniList can't be reached, no extras are added. Doujinshi and fan-coloured works are excluded, and only `contentRating=safe` titles are used.
+- **IDs.** MangaDex titles get local ids from `1000000000` up (`server/catalogue-md.ts`). If one is later matched to AniList, `/api/world/title/:id` returns `movedTo` and the client redirects.
+- **Covers.** MangaDex doesn't allow hotlinking, so covers are served through `GET /api/md/cover/:uuid/:file` and cached on disk in `cache/md-covers` (gitignored).
+- **Limits.** Requests are throttled to about 4 per second, cached for 30 minutes, and sent with an honest User-Agent. Browse pages give MangaDex 3.5 s and searches 6 s, then return AniList results alone.
+- **Credit.** Each MangaDex title page links back to its MangaDex page. The footer and Licenses page credit MangaDex.

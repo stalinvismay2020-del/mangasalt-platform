@@ -52,6 +52,8 @@ function Licenses() {
       <P>The MANGASALT name, logo, design and source code are © 2026 MANGASALT. All rights reserved. They may not be copied or redistributed without written permission.</P>
       <H>Catalogue data · AniList</H>
       <P>Titles, covers, descriptions, genres and scores come from the <A href="https://anilist.co">AniList</A> API, used under the <A href="https://docs.anilist.co/guide/terms-of-use">AniList API Terms of Use</A>. Use is free for non-commercial apps and for commercial apps earning under $150 a month; above that, MANGASALT needs a commercial license from AniList. MANGASALT is not affiliated with AniList. Cover art and descriptions belong to their respective publishers and authors and are shown only to identify each title.</P>
+      <H>Catalogue data · MangaDex</H>
+      <P>Titles that AniList does not list are added from the <A href="https://api.mangadex.org/docs/">MangaDex API</A>: titles, alternative names, descriptions, tags and cover art, each linked back to its MangaDex page. Only metadata is used. MangaDex-hosted scan chapters are never shown, and these titles are marked Licensed externally or Not yet uploaded until an official or licensed source exists. Covers are fetched through MANGASALT and cached, as MangaDex does not allow hotlinking. MANGASALT is not affiliated with MangaDex.</P>
       <H>Official chapter index · MangaDex</H>
       <P>Links to official publisher chapters (for example MANGA Plus) are found with the <A href="https://api.mangadex.org/docs/">MangaDex API</A>. Thanks to MangaDex. Under its policy MANGASALT runs no ads or paid services on top of MangaDex data. No MangaDex-hosted scans are shown.</P>
       <H>Publisher readers</H>

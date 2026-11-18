@@ -31,7 +31,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
     <section className="relative isolate overflow-hidden" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} aria-roledescription="carousel">
       <AnimatePresence>
         <motion.div key={`bg-${s.id}`} className="absolute inset-0 -z-10" initial={{ opacity: 0, scale: 1.08 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} transition={{ duration: 1.2 }}>
-          {s.banner && <img src={s.banner} alt="" className="h-full w-full object-cover opacity-25" />}
+          {s.banner && <img src={asset(s.banner)} alt="" className="h-full w-full object-cover opacity-25" />}
           <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/70 to-background" />
           <div className="absolute inset-0" style={{ background: `radial-gradient(55% 55% at 70% 40%, ${glow}66, transparent 70%)` }} />
         </motion.div>
@@ -51,7 +51,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
                 animate={{ x: off * 28, y: -off * 8, scale: 1 - off * 0.08, opacity: off === 0 ? 1 : 0.4, rotate: off * 5, zIndex: 10 - off, filter: off ? "blur(1.5px)" : "blur(0px)" }}
                 whileHover={off === 0 ? { scale: 1.03, rotate: -1 } : undefined}
                 transition={{ type: "spring", stiffness: 170, damping: 22 }}>
-                <img src={it.cover} alt={`${it.title} cover`} className="h-full w-full object-cover" />
+                <img src={asset(it.cover)} alt={`${it.title} cover`} className="h-full w-full object-cover" />
                 {off === 0 && <motion.span className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-transparent via-white/25 to-transparent" initial={{ x: "-120%" }} animate={{ x: "120%" }} transition={{ duration: 1.4, delay: 0.3 }} />}
               </motion.button>
             );
@@ -139,7 +139,7 @@ function ContinueReading({ items }: { items: WorldShelfItem[] }) {
         {items.map((m, k) => (
           <motion.div key={m.id} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: k * 0.05 }} className="shrink-0 snap-start">
             <Link href={`/title/${m.id}`} className="group flex w-64 items-center gap-3 rounded-2xl border border-border bg-card p-2.5 transition hover:-translate-y-0.5 hover:border-primary/50" data-testid={`link-continue-${m.id}`}>
-              <img src={m.cover} alt="" className="h-20 w-14 rounded-lg object-cover" />
+              <img src={asset(m.cover)} alt="" className="h-20 w-14 rounded-lg object-cover" />
               <div className="min-w-0 flex-1"><p className="line-clamp-2 text-sm font-semibold">{m.title}</p><p className="mt-1 text-xs text-muted-foreground">{!m.chapter ? "Not started" : /^\d/.test(m.chapter) ? `Last opened: chapter ${m.chapter}` : "Opened at the publisher"}</p></div>
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition group-hover:scale-110"><Play className="h-4 w-4 fill-current" /></span>
             </Link>
@@ -223,7 +223,7 @@ function MostLiked() {
         {data.slice(0, 6).map((m, k) => (
           <Link key={m.id} href={`/title/${m.id}`} className="flex items-center gap-3 rounded-xl border border-border bg-card p-2 transition hover:border-primary/50">
             <span className="font-display w-7 text-center text-xl font-bold text-primary">{k + 1}</span>
-            <img src={m.cover} alt="" className="h-14 w-10 rounded object-cover" />
+            <img src={asset(m.cover)} alt="" className="h-14 w-10 rounded object-cover" />
             <span className="line-clamp-1 flex-1 text-sm font-semibold">{m.title}</span>
             <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="h-3.5 w-3.5 fill-primary text-primary" />{compact(m.likes)}</span>
           </Link>

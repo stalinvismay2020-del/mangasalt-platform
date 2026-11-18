@@ -86,7 +86,7 @@ function Shell() {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span>
-            <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from AniList. Chapters only from official publishers, open licenses, or their own creators. No unofficial scans, ever.</p>
+            <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from AniList and MangaDex. Chapters only from official publishers, open licenses, or their own creators. No unofficial scans, ever.</p>
           </div>
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Legal">
             <Link href="/settings" className="hover:text-foreground">Accessibility</Link>

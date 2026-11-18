@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Flame, Crown, Star, TrendingUp, Trophy, Users, ArrowUpRight, Sparkles } from "lucide-react";
-import { TypeBadge } from "@/components/shared";
+import { TypeBadge, asset } from "@/components/shared";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { compact } from "@/lib/app-context";
 import type { WorldCard, WorldPage } from "@shared/world";
@@ -39,7 +39,7 @@ function FloatingBackdrop({ items }: { items: WorldCard[] }) {
       {items.slice(3, 3 + Math.min(6, spots.length)).map((m, i) => {
         const p = spots[i];
         return (
-          <motion.img key={m.id} src={m.cover} alt="" className="absolute rounded-2xl object-cover saturate-150 shadow-2xl"
+          <motion.img key={m.id} src={asset(m.cover)} alt="" className="absolute rounded-2xl object-cover saturate-150 shadow-2xl"
             style={{ left: p.l, top: p.t, width: p.w, aspectRatio: "2/3", filter: "blur(2px)" }}
             initial={{ opacity: 0, rotate: p.r, scale: 0.8 }}
             animate={reduce ? { opacity: op } : { opacity: op, y: [0, -amp.y, 0], x: [0, amp.x, 0], rotate: [p.r, p.r + amp.r, p.r] }}
@@ -65,7 +65,7 @@ function Ticker({ items }: { items: WorldCard[] }) {
       <motion.div className="flex w-max gap-6 px-4" animate={{ x: ["0%", "-50%"] }} transition={{ duration: 40, repeat: Infinity, ease: "linear" }}>
         {list.map((m, i) => (
           <Link key={`${m.id}-${i}`} href={`/title/${m.id}`} className="flex shrink-0 items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground">
-            <span className="font-display text-primary">#{(i % 10) + 1}</span><img src={m.cover} alt="" className="h-5 w-4 rounded-sm object-cover" />{m.title}<ArrowUpRight className="h-3 w-3 text-emerald-500" />
+            <span className="font-display text-primary">#{(i % 10) + 1}</span><img src={asset(m.cover)} alt="" className="h-5 w-4 rounded-sm object-cover" />{m.title}<ArrowUpRight className="h-3 w-3 text-emerald-500" />
           </Link>
         ))}
       </motion.div>
@@ -108,7 +108,7 @@ function Podium({ items, order }: { items: WorldCard[]; order: string }) {
                 </motion.div>
               </>
             )}
-            <motion.img whileHover={{ scale: 1.06, rotate: rank === 2 ? -3 : rank === 3 ? 3 : 0 }} src={s.cover} alt=""
+            <motion.img whileHover={{ scale: 1.06, rotate: rank === 2 ? -3 : rank === 3 ? 3 : 0 }} src={asset(s.cover)} alt=""
               className={`relative aspect-[2/3] rounded-xl object-cover shadow-2xl ring-1 ring-white/10 ${rank === 1 ? "w-24 sm:w-36" : "w-[72px] sm:w-28"}`} />
             {rank === 1 && <span className="shimmer pointer-events-none absolute inset-0 overflow-hidden rounded-xl" />}
             <motion.span className="absolute -bottom-3 left-1/2 -z-10 h-3 w-3/4 -translate-x-1/2 rounded-full bg-black/50 blur-md"
@@ -139,7 +139,7 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
       <Link href={`/title/${s.id}`} className="group relative flex min-w-0 items-center gap-3 overflow-hidden rounded-2xl px-2 py-3 transition-all hover:bg-card hover:shadow-xl sm:gap-4" data-testid={`row-rank-${s.id}`}>
         <span className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-500 group-hover:opacity-100" style={{ background: `linear-gradient(90deg, ${s.color ?? "hsl(var(--primary))"}22, transparent 60%)` }} />
         <span className="rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums transition-transform duration-300 group-hover:scale-110 sm:w-10 sm:text-4xl">{rank}</span>
-        <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={s.cover} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-lg ring-1 ring-white/5" loading="lazy"
+        <motion.img whileHover={{ rotate: -4, scale: 1.12 }} src={asset(s.cover)} alt="" className="h-[72px] w-12 shrink-0 rounded-md object-cover shadow-lg ring-1 ring-white/5" loading="lazy"
           animate={reduce ? undefined : { y: [0, -2, 0] }}
           transition={{ duration: 4 + (rank % 4) * 0.4, repeat: Infinity, ease: "easeInOut", delay: (rank % 6) * 0.25 }} />
         <div className="min-w-0 flex-1">

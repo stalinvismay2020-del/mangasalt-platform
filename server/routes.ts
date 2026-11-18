@@ -6,6 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
+import { coverFile } from "./catalogue-md";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
 import { registerChapterRoutes } from "./chapters";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
@@ -247,11 +248,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       status: str("status") || undefined, sort: str("sort") || undefined, period: str("period") || undefined, official: req.query.official === "1", page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
     }));
   }));
+  // MangaDex covers are proxied and cached on disk (MangaDex forbids hotlinking)
+  app.get("/api/md/cover/:uuid/:file", wrap(async (req, res) => {
+    const f = await coverFile(String(req.params.uuid), String(req.params.file), Number(req.query.s) || 512);
+    if (!f) return res.status(404).json({ message: "Cover not found" });
+    res.set("Cache-Control", "public, max-age=2592000, immutable").type("image/jpeg").sendFile(f);
+  }));
   app.get("/api/world/title/:id", wrap(async (req, res) => {
     const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(404).json({ message: "Title not found" });
     const t = await worldTitle(id);
     storage.upsertWorld(t);
-    res.json({ ...t, ...storage.worldState(id, me(req)?.id) });
+    res.json({ ...t, ...storage.worldState(t.id, me(req)?.id) });
   }));
   app.post("/api/legal/takedown", (req, res) => {
     const b = req.body ?? {};
@@ -268,7 +276,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/world/random", wrap(async (req, res) => {
     const type = typeof req.query.type === "string" ? req.query.type : undefined;
     const page = 1 + Math.floor(Math.random() * 8);
-    const r = await worldSearch({ sort: "popular", type, page, perPage: 30 });
+    const r = await worldSearch({ sort: "popular", type, page, perPage: 30, extras: false });
     const pick = r.items[Math.floor(Math.random() * r.items.length)];
     if (!pick) return res.status(404).json({ message: "Nothing to pick" });
     res.json({ id: pick.id, title: pick.title });

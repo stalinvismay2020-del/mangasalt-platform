@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FavouriteButton, AddToShelf, ChapterCounter, ReportButton } from "@/components/platform";
 import { Link, useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -7,7 +7,7 @@ import { Play, Star, Lock, Search as SearchIcon, ArrowDownUp, ChevronDown, BookO
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { TypeBadge } from "@/components/shared";
+import { TypeBadge, asset } from "@/components/shared";
 import { WorldLike, WorldSave, WorldPoster, STATUS_LABEL } from "@/components/world";
 import { Comments } from "@/pages/series";
 import { compact } from "@/lib/app-context";
@@ -26,6 +26,8 @@ export default function TitlePage() {
   const chUrl = `/api/world/title/${id}/chapters`;
   const ch = useQuery<ChapterPage>({ queryKey: [chUrl, { status: "available", limit: "100" }], staleTime: 60_000, enabled: !!id });
   const [more, setMore] = useState(false);
+  // A MangaDex id that has since been matched to an AniList title: send readers to the canonical page.
+  useEffect(() => { if (t?.movedTo && String(t.movedTo) !== id) nav(`/title/${t.movedTo}`, { replace: true }); }, [t?.movedTo, id]);
 
   if (isError && ![404, 400].includes((error as any)?.status)) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground" role="alert"><p>This title couldn't load. Check your connection and try again.</p><button onClick={() => refetch()} className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Try again</button></div>;
   if (isError) return <NotFoundView embedded title="Title not found" message="This title isn't in the catalogue, or it was removed." />;
@@ -41,7 +43,7 @@ export default function TitlePage() {
       {/* Backdrop */}
       <div className="absolute inset-x-0 top-0 -z-10 h-[460px] overflow-hidden">
         <motion.img initial={{ scale: 1.15, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
-          src={t.banner ?? t.cover} alt="" className="h-full w-full object-cover opacity-40 blur-[2px]" />
+          src={asset(t.banner ?? t.cover)} alt="" className="h-full w-full object-cover opacity-40 blur-[2px]" />
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
         <div className="absolute inset-0" style={{ background: `radial-gradient(60% 50% at 20% 30%, ${accent}33, transparent)` }} />
       </div>
@@ -52,7 +54,7 @@ export default function TitlePage() {
           <motion.div initial={{ opacity: 0, y: 30, rotate: -3 }} animate={{ opacity: 1, y: 0, rotate: 0 }} transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="relative mx-auto w-44 md:w-full">
             <div className="absolute -inset-4 -z-10 rounded-3xl opacity-60 blur-2xl" style={{ background: accent }} />
-            <img src={t.cover} alt={`${t.title} cover`} className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl ring-1 ring-white/10" data-testid="img-title-cover" />
+            <img src={asset(t.cover)} alt={`${t.title} cover`} className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl ring-1 ring-white/10" data-testid="img-title-cover" />
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.6 }} className="min-w-0 text-center md:text-left">
@@ -104,6 +106,7 @@ export default function TitlePage() {
             <div className="relative mt-5 text-left">
               <p className={`whitespace-pre-line text-[15px] leading-relaxed text-muted-foreground ${more ? "" : "line-clamp-4"}`} data-testid="text-synopsis">{t.description || "No synopsis yet."}</p>
               {t.description.length > 260 && <button onClick={() => setMore(!more)} className="mt-1 text-sm font-medium text-primary">{more ? "Show less" : "Read more"}</button>}
+              {t.source === "mangadex" && <p className="mt-3 text-xs text-muted-foreground" data-testid="text-md-credit">Catalogue data from <a href={t.siteUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-foreground">MangaDex</a>. MANGASALT does not show MangaDex-hosted scans.</p>}
             </div>
 
             {t.staff.length > 0 && (

@@ -7,7 +7,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { storage } from "./storage";
 import { worldTitle } from "./anilist";
-import { officialChapters } from "./mangadex";
+import { officialChapters, officialChaptersByMd } from "./mangadex";
+import { isMdId, mdUuidFor } from "./catalogue-md";
 import { tapasEpisodes } from "./tapas";
 import { countryOf, seriesRegion } from "./social";
 import { modlog } from "./admin";
@@ -68,7 +69,9 @@ async function worldItems(req: Request, u: PublicUser | undefined, id: number) {
   if (hosted) for (const c of hostedItems(hosted.id, viewerFor(req, u, hosted.id, hosted.creator_id))) items.set(numKey(c.kind, c.number ?? c.key), c);
 
   const [md, tapas] = await Promise.all([
-    officialChapters(id, [t.title, t.altTitle ?? ""]).catch(() => ({ found: false, chapters: [] as any[] })),
+    (isMdId(id) && !t.movedTo
+      ? (mdUuidFor(id) ? officialChaptersByMd(mdUuidFor(id)!) : Promise.resolve({ found: false, chapters: [] as any[] }))
+      : officialChapters(t.id, [t.title, t.altTitle ?? ""])).catch(() => ({ found: false, chapters: [] as any[] })),
     t.tapasUrl ? tapasEpisodes(t.tapasUrl).catch(() => []) : Promise.resolve([]),
   ]);
   const opened = new Set(u ? (db.prepare(`SELECT DISTINCT chapter FROM world_history WHERE user_id = ? AND anilist_id = ?`).all(u.id, id) as any[]).map((r) => r.chapter) : []);
