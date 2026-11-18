@@ -1,8 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { apiRequest, queryClient, setAuthToken, invalidatePrefixes } from "./queryClient";
+import { apiRequest, queryClient, setAuthToken, invalidatePrefixes, API_BASE } from "./queryClient";
+import { MotionConfig } from "framer-motion";
 import type { PublicUser, SeriesCard } from "@shared/schema";
 
 type Theme = "dark" | "light";
+export type A11y = { reduceMotion: boolean; largeText: boolean; highContrast: boolean; underlineLinks: boolean; dyslexicSpacing: boolean };
+const A11Y_DEFAULT: A11y = { reduceMotion: false, largeText: false, highContrast: false, underlineLinks: false, dyslexicSpacing: false };
+const store = {
+  get<T>(k: string, d: T): T { try { const v = window.localStorage?.getItem(k); return v ? { ...d, ...JSON.parse(v) } : d; } catch { return d; } },
+  set(k: string, v: unknown) { try { window.localStorage?.setItem(k, JSON.stringify(v)); } catch {} },
+};
 type Ctx = {
   user: PublicUser | null;
   theme: Theme;
@@ -14,6 +21,9 @@ type Ctx = {
   signOut: () => void;
   openSeries: SeriesCard | null;
   setOpenSeries: (s: SeriesCard | null) => void;
+  updateUser: (u: PublicUser) => void;
+  a11y: A11y;
+  setA11y: (p: Partial<A11y>) => void;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -37,6 +47,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
+  // accessibility preferences live on this device
+  const [a11y, setA11yState] = useState<A11y>(() => {
+    const saved = store.get("ms-a11y", A11Y_DEFAULT);
+    if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return saved;
+    return { ...saved, reduceMotion: true };
+  });
+  useEffect(() => {
+    const c = document.documentElement.classList;
+    c.toggle("a11y-reduce-motion", a11y.reduceMotion);
+    c.toggle("a11y-large-text", a11y.largeText);
+    c.toggle("a11y-contrast", a11y.highContrast);
+    c.toggle("a11y-underline", a11y.underlineLinks);
+    c.toggle("a11y-spacing", a11y.dyslexicSpacing);
+  }, [a11y]);
+
+  // restore the signed-in session after a refresh
+  useEffect(() => {
+    const saved = store.get<{ t: string | null }>("ms-session", { t: null }).t;
+    if (!saved) return;
+    setAuthToken(saved);
+    fetch(`${API_BASE}/api/auth/me`, { headers: { Authorization: `Bearer ${saved}` } }).then((r) => r.json()).then((d) => {
+      if (d.user) { setUser(d.user); refreshPersonal(); } else { setAuthToken(null); store.set("ms-session", { t: null }); }
+    }).catch(() => {});
+  }, []);
+
   const refreshPersonal = () => {
     queryClient.invalidateQueries({ queryKey: ["/api/home"] });
     invalidatePrefixes("/api/series");
@@ -52,6 +87,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeAuth: () => setAuthOpen(false),
     signIn: (token, u) => {
       setAuthToken(token);
+      store.set("ms-session", { t: token });
       setUser(u);
       setAuthOpen(false);
       refreshPersonal();
@@ -59,13 +95,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     signOut: () => {
       apiRequest("POST", "/api/auth/logout").catch(() => {});
       setAuthToken(null);
+      store.set("ms-session", { t: null });
       setUser(null);
       refreshPersonal();
     },
     openSeries,
     setOpenSeries,
+    updateUser: (u) => setUser((prev) => (prev ? { ...prev, ...u } : prev)),
+    a11y,
+    setA11y: (p) => setA11yState((prev) => { const next = { ...prev, ...p }; store.set("ms-a11y", next); return next; }),
   };
-  return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
+  return <AppCtx.Provider value={value}><MotionConfig reducedMotion={a11y.reduceMotion ? "always" : "user"}>{children}</MotionConfig></AppCtx.Provider>;
 }
 
 export function useApp() {

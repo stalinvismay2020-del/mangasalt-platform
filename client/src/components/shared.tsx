@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool } from "lucide-react";
+import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool, CalendarDays, ArrowUp } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
 import type { PublicUser, SeriesCard } from "@shared/schema";
+import { NotificationBell } from "@/components/platform";
 
 const API_ASSET = (p: string) => (p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/") ? `.${p}` : p);
 export const asset = API_ASSET;
@@ -91,8 +92,12 @@ export function SeriesPoster({ s, index = 0, onOpen, size = "md" }: { s: SeriesC
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.5, delay: Math.min(index, 8) * 0.05, ease: [0.16, 1, 0.3, 1] }}
-      className="group relative cursor-pointer"
+      className="group relative cursor-pointer rounded-lg"
       onClick={() => onOpen(s)}
+      role="link"
+      tabIndex={0}
+      aria-label={`${s.title}, ${TYPE_LABEL[s.type]} by ${s.creator.displayName}`}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(s); } }}
       data-testid={`card-series-${s.id}`}
     >
       <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-muted ring-1 ring-white/5">
@@ -124,13 +129,13 @@ export function PosterSkeleton() {
 }
 
 // ---------- Follow ----------
-export function FollowButton({ type, id, following, size = "sm" }: { type: "series" | "creator"; id: number; following: boolean; size?: "sm" | "default" }) {
+export function FollowButton({ type, id, following, size = "sm" }: { type: "series" | "creator" | "user"; id: number; following: boolean; size?: "sm" | "default" }) {
   const { user, openAuth } = useApp();
   const [state, setState] = useState(following);
   useEffect(() => setState(following), [following]);
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", `/api/follow/${type}/${id}`)).json(),
-    onSuccess: (d: any) => { setState(d.following); invalidatePrefixes("/api/home", "/api/series", "/api/me/library"); },
+    onSuccess: (d: any) => { setState(d.following); invalidatePrefixes("/api/home", "/api/series", "/api/me/library", "/api/readers", "/api/me/feed"); },
   });
   return (
     <Button size={size} variant={state ? "secondary" : "outline"} className="gap-1.5 rounded-full" data-testid={`button-follow-${type}-${id}`}
@@ -220,6 +225,7 @@ export function SaveButton({ s, compact: small = false }: { s: SeriesCard; compa
 export const TABS = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/trending", label: "Trending", icon: Flame },
+  { href: "/calendar", label: "Calendar", icon: CalendarDays, desktopOnly: true },
   { href: "/library", label: "Library", icon: LibraryIcon },
   { href: "/search", label: "Search", icon: Search },
   { href: "/profile", label: "Profile", icon: UserIcon },
@@ -231,27 +237,28 @@ export function TopBar() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => { const h = () => setScrolled(window.scrollY > 12); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   return (
-    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-white/10 bg-background/35 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:h-16 sm:px-6">
-        <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">
+    <header className={`sticky top-0 z-40 transition-[padding] duration-500 ${scrolled ? "px-2 pt-2 sm:px-4" : "px-0 pt-0"}`}>
+      <div className={`mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 transition-all duration-500 sm:h-16 sm:px-6 ${scrolled ? "glass-nav rounded-2xl sm:h-14" : "border border-transparent"}`}>
+        <Link href="/" className="logo-shine font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">
           MANGA<span className="text-primary">SALT</span>
         </Link>
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          {TABS.slice(0, 4).map((t) => (
+          {TABS.filter((t) => t.href !== "/profile").map((t) => (
             <Link key={t.href} href={t.href} data-testid={`link-top-${t.label.toLowerCase()}`}
               className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${loc === t.href ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {loc === t.href && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-accent" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
+              {loc === t.href && <motion.span layoutId="top-pill" className="glass-btn absolute inset-0 rounded-full shadow-[0_0_18px_hsl(var(--primary)/0.25)]" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
               <span className="relative">{t.label}</span>
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
-          <Link href="/studio" data-testid="link-top-studio" className={`mr-1 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition md:flex ${loc.startsWith("/studio") ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"}`}>
+          <Link href="/studio" data-testid="link-top-studio" className={`mr-1 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition md:flex glass-btn lift ${loc.startsWith("/studio") ? "!border-primary !bg-primary/15 text-primary" : "text-muted-foreground hover:!border-primary/60 hover:text-foreground"}`}>
             <PenTool className="h-3.5 w-3.5" />Studio
           </Link>
           <ThemeSwitch />
+          <NotificationBell />
           <Link href="/profile" aria-label="Profile" data-testid="button-profile"
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-white/5 text-muted-foreground backdrop-blur-md transition hover:bg-white/10 hover:text-foreground">
+            className="glass-btn lift grid h-9 w-9 place-items-center rounded-full text-muted-foreground hover:text-foreground">
             {user ? <Avatar user={user} size={34} /> : <UserIcon className="h-4 w-4" />}
           </Link>
         </div>
@@ -265,7 +272,7 @@ export function BottomNav() {
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
       <div className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
-        {TABS.map((t) => {
+        {TABS.filter((t) => !(t as any).desktopOnly).map((t) => {
           const active = loc === t.href;
           const Icon = t.icon;
           return (
@@ -386,5 +393,35 @@ export function ThemeSwitch({ className = "" }: { className?: string }) {
         </AnimatePresence>
       </motion.span>
     </button>
+  );
+}
+
+
+/** Slow floating colour orbs and specks behind the app. Pure CSS so reduce-motion can stop it. */
+export function AmbientBackdrop() {
+  return (
+    <div className="ambient pointer-events-none fixed inset-0 -z-20 overflow-hidden" aria-hidden>
+      <span className="orb orb-a" /><span className="orb orb-b" /><span className="orb orb-c" />
+      {Array.from({ length: 14 }, (_, i) => (
+        <span key={i} className="speck" style={{ left: `${(i * 37) % 100}%`, animationDelay: `${-(i * 1.7)}s`, animationDuration: `${14 + (i % 5) * 3}s`, width: 2 + (i % 3), height: 2 + (i % 3) }} />
+      ))}
+    </div>
+  );
+}
+
+/** Floating glass "back to top" button that appears after scrolling. */
+export function BackToTop() {
+  const [show, setShow] = useState(false);
+  useEffect(() => { const h = () => setShow(window.scrollY > 900); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.button initial={{ opacity: 0, scale: 0.6, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.6, y: 20 }} whileHover={{ y: -3 }} whileTap={{ scale: 0.9 }}
+          onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Back to top" data-testid="button-back-to-top"
+          className="glass-btn float-slow fixed bottom-24 right-4 z-40 grid h-11 w-11 place-items-center rounded-full text-foreground shadow-lg md:bottom-8 md:right-8">
+          <ArrowUp className="h-5 w-5" />
+        </motion.button>
+      )}
+    </AnimatePresence>
   );
 }

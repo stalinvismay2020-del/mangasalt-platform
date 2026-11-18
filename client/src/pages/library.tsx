@@ -6,6 +6,7 @@ import { Clock, Bookmark, BookOpen, Upload, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHead, EmptyBox, SeriesPoster, asset } from "@/components/shared";
 import { useApp, compact } from "@/lib/app-context";
+import { ShelvesSection } from "@/pages/reader-pages";
 import type { LibraryData, HomeData, SeriesCard } from "@shared/schema";
 
 function Head({ icon: Icon, title }: { icon: any; title: string }) {
@@ -67,6 +68,8 @@ export default function Library() {
           : !d?.continueReading.length && !reading.length ? <EmptyBox>Nothing in progress. Open any chapter and it will show up here.</EmptyBox>
           : <div className="no-scrollbar -mx-4 flex snap-x scroll-px-4 sm:scroll-px-6 gap-3 overflow-x-auto px-4 sm:-mx-6 sm:px-6">{reading.map((m) => <ShelfCard key={`w${m.id}`} m={m} />)}{d?.continueReading.map((s) => <ContinueCard key={s.id} s={s} />)}</div>}
       </section>
+
+      <ShelvesSection />
 
       <section>
         <Head icon={Bookmark} title="Saved" />

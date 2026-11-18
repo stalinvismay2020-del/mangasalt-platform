@@ -10,6 +10,9 @@ import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
 import { tapasEpisodes } from "./tapas";
 import { officialChapters } from "./mangadex";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
+import { registerSocialRoutes, notify, staffIds, countryOf, seriesRegion, badges } from "./social";
+import { registerAdminRoutes, installMetrics, bootstrapAdmins, spamCheck, flagIfSpam, fileReport, modlog } from "./admin";
+import { isStaff } from "@shared/platform";
 
 function token(req: Request) {
   const h = req.headers.authorization;
@@ -24,9 +27,14 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+  installMetrics(app);
   seedIfEmpty();
   removePlaceholders();
   ensurePepper();
+  bootstrapAdmins();
+  registerSocialRoutes(app, { me, requireAuth });
+  registerAdminRoutes(app, { me });
+  const db = storage.raw();
 
   // ---------- auth ----------
   app.post("/api/auth/signup", (req, res) => {
@@ -42,6 +50,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!p.success) return res.status(400).json({ message: "Enter username and password" });
     const r = storage.getUserByUsername(p.data.username);
     if (!r || !verifyPassword(p.data.password, r.password)) return res.status(401).json({ message: "Wrong username or password" });
+    if (r.banned) return res.status(403).json({ message: `This account is suspended${r.ban_reason ? `: ${r.ban_reason}` : ""}. Contact support if you think this is a mistake.` });
     const t = storage.createSession(r.id);
     res.json({ token: t, user: storage.userFromToken(t) });
   });
@@ -81,25 +90,61 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   app.post("/api/follow/:type/:id", requireAuth, (req, res) => {
-    const t = req.params.type === "series" ? "series" : req.params.type === "creator" ? "creator" : null;
+    const t = req.params.type === "series" ? "series" : req.params.type === "creator" ? "creator" : req.params.type === "user" ? "user" : null;
     if (!t) return res.status(400).json({ message: "Invalid follow target" });
-    res.json(storage.toggleFollow((req as any).user.id, t, Number(req.params.id)));
+    const uid = (req as any).user.id, target = Number(req.params.id);
+    if (t === "user") {
+      if (target === uid) return res.status(400).json({ message: "You can't follow yourself" });
+      if (!db.prepare(`SELECT 1 FROM users WHERE id = ? AND banned = 0`).get(target)) return res.status(404).json({ message: "Reader not found" });
+    }
+    const r = storage.toggleFollow(uid, t, target);
+    if (r.following && (t === "user" || t === "creator")) {
+      const u = (req as any).user;
+      notify(target, { type: "follow", title: `${u.displayName} followed you`, body: t === "creator" ? "They'll hear about your new chapters." : "", link: `/u/${u.username}`, actorId: uid });
+    }
+    if (r.following) badges(uid);
+    res.json(r);
   });
 
   // ---------- series page + reader ----------
   app.get("/api/series/by-slug/:slug", (req, res) => {
-    const d = storage.seriesDetail(String(req.params.slug), me(req)?.id);
+    const u = me(req);
+    const d = storage.seriesDetail(String(req.params.slug), u?.id, isStaff(u));
     if (!d) return res.status(404).json({ message: "Series not found" });
-    res.json(d);
+    res.json({ ...d, region: seriesRegion(d.series.id, countryOf(req, u)) });
   });
+  const chapterGate = (req: Request, res: Response, id: number) => {
+    const u = me(req);
+    const c: any = db.prepare(`SELECT c.approval, c.publish_at, s.id AS sid, s.approval AS s_approval, s.removed, s.creator_id FROM chapters c JOIN series s ON s.id = c.series_id WHERE c.id = ?`).get(id);
+    if (!c) { res.status(404).json({ message: "Chapter not found" }); return false; }
+    const privileged = isStaff(u) || c.creator_id === u?.id;
+    if (!privileged && (c.approval !== "approved" || c.publish_at > Date.now() || c.s_approval !== "approved" || c.removed)) { res.status(404).json({ message: c.publish_at > Date.now() && c.approval === "approved" ? "This chapter hasn't been released yet" : "Chapter not found" }); return false; }
+    const region = seriesRegion(c.sid, countryOf(req, u));
+    if (region.blocked && !privileged) { res.status(451).json({ message: `This series isn't available in your region (${region.label}).` }); return false; }
+    return true;
+  };
   app.get("/api/chapters/:id", (req, res) => {
+    if (!chapterGate(req, res, Number(req.params.id))) return;
     const d = storage.chapter(Number(req.params.id), me(req)?.id);
     if (!d) return res.status(404).json({ message: "Chapter not found" });
     res.json(d);
   });
   app.post("/api/chapters/:id/read", (req, res) => {
     const u = me(req);
-    if (u) storage.readChapter(u.id, Number(req.params.id));
+    if (u) { storage.readChapter(u.id, Number(req.params.id)); badges(u.id); }
+    res.json({ ok: true });
+  });
+  // last page reached in each chapter, synced across devices
+  db.exec(`CREATE TABLE IF NOT EXISTS reading_progress (user_id INTEGER NOT NULL, chapter_id INTEGER NOT NULL, page INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, chapter_id))`);
+  app.get("/api/chapters/:id/progress", (req, res) => {
+    const u = me(req);
+    const r: any = u ? db.prepare(`SELECT page, updated_at FROM reading_progress WHERE user_id = ? AND chapter_id = ?`).get(u.id, Number(req.params.id)) : null;
+    res.json({ page: r?.page ?? null, updatedAt: r?.updated_at ?? null });
+  });
+  app.put("/api/chapters/:id/progress", requireAuth, (req, res) => {
+    const id = Number(req.params.id), page = Math.max(0, Math.min(500, Math.floor(Number(req.body?.page) || 0)));
+    if (!db.prepare(`SELECT 1 FROM chapters WHERE id = ?`).get(id)) return res.status(404).json({ message: "Chapter not found" });
+    db.prepare(`INSERT INTO reading_progress (user_id, chapter_id, page, updated_at) VALUES (?,?,?,?) ON CONFLICT(user_id, chapter_id) DO UPDATE SET page = excluded.page, updated_at = excluded.updated_at`).run((req as any).user.id, id, page, Date.now());
     res.json({ ok: true });
   });
   app.post("/api/chapters/:id/bookmark", requireAuth, (req, res) => {
@@ -110,6 +155,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   // ---------- comments ----------
+  /** Store a comment, run spam detection and notify the person being replied to. */
+  const postComment = (req: Request, sid: number, body: string, parentId: number | null, chapterId: number | null) => {
+    const u = (req as any).user;
+    const check = spamCheck(u.id, body);
+    const r = storage.addComment(u.id, sid, body, !!req.body?.spoiler, parentId, chapterId);
+    const held = flagIfSpam(r.id, u.id, check);
+    if (!held) {
+      badges(u.id);
+      if (parentId) {
+        const parent: any = db.prepare(`SELECT user_id FROM comments WHERE id = ?`).get(parentId);
+        const link = sid > 0 ? `/series/${(db.prepare(`SELECT slug FROM series WHERE id = ?`).get(sid) as any)?.slug}` : `/title/${-sid}`;
+        if (parent) notify(parent.user_id, { type: "reply", title: `${u.displayName} replied to you`, body: body.slice(0, 160), link, actorId: u.id });
+      }
+    }
+    return { ...r, held };
+  };
   app.get("/api/series/:id/comments", (req, res) => {
     const cid = req.query.chapter ? Number(req.query.chapter) : undefined;
     res.json(storage.comments(Number(req.params.id), me(req)?.id, cid));
@@ -121,7 +182,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (body.length < 1 || body.length > 2000) return res.status(400).json({ message: "Comments need 1 to 2000 characters" });
     const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
     if (parentId && storage.seriesIdOfComment(parentId) !== id) return res.status(400).json({ message: "Reply target not found" });
-    res.json(storage.addComment((req as any).user.id, id, body, !!req.body?.spoiler, parentId, req.body?.chapterId ? Number(req.body.chapterId) : null));
+    res.json(postComment(req, id, body, parentId, req.body?.chapterId ? Number(req.body.chapterId) : null));
   });
   app.post("/api/comments/:id/like", requireAuth, (req, res) => {
     const id = Number(req.params.id);
@@ -132,6 +193,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const reason = typeof req.body?.reason === "string" ? req.body.reason.trim().slice(0, 300) : "";
     if (reason.length < 3) return res.status(400).json({ message: "Tell us what is wrong" });
     if (!storage.reportComment((req as any).user.id, Number(req.params.id), reason)) return res.status(404).json({ message: "Comment not found" });
+    fileReport((req as any).user.id, "comment", Number(req.params.id), reason);
     res.json({ ok: true });
   });
 
@@ -177,7 +239,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!t.name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t.email) || !t.ownerOf || !t.target || t.details.length < 20)
       return res.status(400).json({ message: "Please fill in every field (details: at least 20 characters)." });
     if (b.goodFaith !== true || b.accurate !== true) return res.status(400).json({ message: "Please confirm both statements." });
-    res.status(201).json({ id: takedowns.create(t) });
+    const id = takedowns.create(t);
+    notify(staffIds(), { type: "moderation", title: "New copyright complaint", body: `${t.ownerOf} · ${t.target.slice(0, 120)}`, link: "/admin/copyright" });
+    res.status(201).json({ id });
   });
   app.get("/api/me/stats", requireAuth, (req, res) => res.json(readingStats((req as any).user.id)));
   app.get("/api/world/random", wrap(async (req, res) => {
@@ -206,7 +270,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (body.length < 1 || body.length > 2000) return res.status(400).json({ message: "Comments need 1 to 2000 characters" });
     const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
     if (parentId && storage.seriesIdOfComment(parentId) !== sid) return res.status(400).json({ message: "Reply target not found" });
-    res.json(storage.addComment((req as any).user.id, sid, body, !!req.body?.spoiler, parentId, null));
+    res.json(postComment(req, sid, body, parentId, null));
   });
 
   // ---------- Creator Studio ----------
@@ -223,9 +287,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!partial || b.type !== undefined) { if (!S_TYPES.includes(b.type)) err("Pick a format"); out.type = b.type; }
     if (!partial || b.status !== undefined) { out.status = S_STATUS.includes(b.status) ? b.status : "ongoing"; }
     if (!partial || b.synopsis !== undefined) { const t = String(b.synopsis ?? "").trim(); if (t.length < 10 || t.length > 1500) err("Synopsis needs 10 to 1500 characters"); out.synopsis = t; }
+    if (b.regions !== undefined) { const r = String(b.regions ?? ""); if (r && !/^(only|except):[A-Z]{2}(,[A-Z]{2})*$/.test(r)) err("Pick valid countries"); out.regions = r; }
     if (!partial || b.genres !== undefined) { const g = Array.isArray(b.genres) ? b.genres.map((x: any) => String(x).slice(0, 24)).filter(Boolean).slice(0, 6) : []; if (!g.length) err("Pick at least one genre"); out.genres = g; }
     return out;
   };
+  const canPublish = (uid: number) => !!db.prepare(`SELECT 1 FROM users WHERE id = ? AND can_publish = 1`).get(uid);
   const owner = (req: Request, res: Response) => {
     const s = studio.owned((req as any).user.id, Number(req.params.id));
     if (!s) { res.status(404).json({ message: "Series not found" }); return null; }
@@ -251,10 +317,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/studio/become", requireAuth, (req, res) => { studio.becomeCreator((req as any).user.id); res.json({ ok: true }); });
   app.post("/api/studio/series", requireAuth, wrap(async (req, res) => {
     const uid = (req as any).user.id;
+    if (!canPublish(uid)) return res.status(403).json({ message: "Publishing is paused on your account. Check your notifications for details." });
     if (req.body?.rights !== true) return res.status(400).json({ message: "Confirm that you own the rights to this work" });
     const d = seriesInput(req.body);
     if (!mine(uid).test(String(req.body.cover ?? ""))) return res.status(400).json({ message: "Upload a cover image" });
-    res.json(studio.createSeries(uid, { ...d, cover: req.body.cover }));
+    const created = studio.createSeries(uid, { ...d, cover: req.body.cover });
+    if (created.approval === "pending") notify(staffIds(), { type: "moderation", title: "New series waiting for approval", body: d.title, link: "/admin/approvals" });
+    modlog(uid, "series.submit", "series", created.id, `${d.title} (${created.approval})`);
+    res.json(created);
   }));
   app.get("/api/studio/series/:id", requireAuth, (req, res) => {
     const s = studio.getSeries((req as any).user.id, Number(req.params.id));
@@ -284,7 +354,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const title = String(req.body?.title ?? "").trim().slice(0, 80);
     const pages: string[] = Array.isArray(req.body?.pages) ? req.body.pages : [];
     if (!pages.length || pages.length > 200 || !pages.every((p) => mine(uid).test(String(p)))) return res.status(400).json({ message: "Add between 1 and 200 uploaded pages" });
-    res.json(studio.addChapter(s.id, { title: title || "Untitled", pages, number: Number(req.body?.number) || undefined }));
+    if (!canPublish(uid)) return res.status(403).json({ message: "Publishing is paused on your account. Check your notifications for details." });
+    const publishAt = Number(req.body?.publishAt) || undefined;
+    if (publishAt && publishAt > Date.now() + 366 * 864e5) return res.status(400).json({ message: "Schedule within the next year" });
+    const ch = studio.addChapter(s.id, { title: title || "Untitled", pages, number: Number(req.body?.number) || undefined, publishAt });
+    if (ch.approval === "pending" && s.approval === "approved") notify(staffIds(), { type: "moderation", title: "New chapter waiting for approval", body: `${s.title} · Chapter ${ch.number}`, link: "/admin/approvals" });
+    res.json(ch);
   });
   app.patch("/api/studio/chapters/:cid", requireAuth, (req, res) => {
     const uid = (req as any).user.id;
