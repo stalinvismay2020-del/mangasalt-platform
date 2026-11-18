@@ -11,8 +11,27 @@ import { apiRequest } from "@/lib/queryClient";
 import type { WorldPage } from "@shared/world";
 import type { SeriesCard } from "@shared/schema";
 
-const selectCls = "h-9 rounded-full border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary";
-const TYPES: [string, string][] = [["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]];
+const TYPES: [string, string][] = [["", "All types"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]];
+const STATUSES: [string, string][] = [["", "Any status"], ["ongoing", "Releasing"], ["completed", "Completed"], ["hiatus", "On hiatus"], ["upcoming", "Upcoming"], ["cancelled", "Cancelled"]];
+const SORTS: [string, string][] = [["best", "Best rated"], ["top", "Top favourites"], ["popular", "Most popular"], ["trending", "Trending now"], ["new", "Newest"], ["chapters", "Most chapters"], ["az", "A–Z"]];
+const PERIODS: [string, string][] = [["", "Any time"], ["year", "This year"], ["recent", "Last 5 years"], ["2010s", "2010s"], ["2000s", "2000s"], ["classic", "Before 2000"]];
+
+function ChipRow({ label, id, value, options, onChange }: { label: string; id: string; value: string; options: [string, string][]; onChange: (v: string) => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-16 shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground sm:w-20" id={`lbl-${id}`}>{label}</span>
+      <div role="radiogroup" aria-labelledby={`lbl-${id}`} className="no-scrollbar -mr-4 flex min-w-0 flex-1 gap-1.5 overflow-x-auto pr-4 sm:mr-0 sm:flex-wrap sm:pr-0">
+        {options.map(([v, l]) => (
+          <button key={v || "any"} role="radio" aria-checked={value === v} onClick={() => onChange(v)} data-testid={`chip-${id}-${v || "any"}`}
+            className={`relative h-8 shrink-0 rounded-full px-3.5 text-xs font-medium transition sm:text-sm ${value === v ? "text-primary-foreground" : "glass-btn lift text-muted-foreground hover:text-foreground"}`}>
+            {value === v && <motion.span layoutId={`pill-${id}`} className="absolute inset-0 rounded-full bg-primary shadow-[0_6px_18px_-6px_hsl(var(--primary))]" transition={{ type: "spring", stiffness: 420, damping: 32 }} />}
+            <span className="relative">{l}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function Search() {
   const params = useParams<{ genre?: string; type?: string }>();
@@ -23,6 +42,7 @@ export default function Search() {
   const [genres, setGenres] = useState<string[]>(params.genre ? [decodeURIComponent(params.genre)] : []);
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("popular");
+  const [period, setPeriod] = useState("");
   const [showGenres, setShowGenres] = useState(!!params.genre);
   useEffect(() => { if (params.genre) { setGenres([decodeURIComponent(params.genre)]); setShowGenres(true); } }, [params.genre]);
   useEffect(() => { if (params.type) setType(params.type); }, [params.type]);
@@ -30,7 +50,7 @@ export default function Search() {
 
   const allGenres = useQuery<string[]>({ queryKey: ["/api/world/genres"] });
   const effSort = dq && sort === "popular" ? "match" : sort;
-  const filters = { q: dq, type, genres: genres.join(","), status, sort: effSort };
+  const filters = { q: dq, type, genres: genres.join(","), status, sort: effSort, period };
   const res = useInfiniteQuery<WorldPage>({
     queryKey: ["/api/world/search", filters],
     initialPageParam: 1,
@@ -52,7 +72,8 @@ export default function Search() {
   }, [res.hasNextPage, res.isFetchingNextPage, items.length]);
 
   const toggleGenre = (g: string) => setGenres((l) => (l.includes(g) ? l.filter((x) => x !== g) : [...l, g]));
-  const reset = () => { setQ(""); setType(""); setGenres([]); setStatus(""); setSort("popular"); };
+  const reset = () => { setQ(""); setType(""); setGenres([]); setStatus(""); setSort("popular"); setPeriod(""); };
+  const active = [type, status, period, sort !== "popular" ? sort : ""].filter(Boolean).length + genres.length;
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
@@ -65,24 +86,20 @@ export default function Search() {
         {q && <button onClick={() => setQ("")} aria-label="Clear" data-testid="button-clear-search"><X className="h-4 w-4 text-muted-foreground" /></button>}
       </label>
 
-      <div className="no-scrollbar -mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-        {TYPES.map(([v, l]) => (
-          <button key={v} onClick={() => setType(v)} data-testid={`chip-search-type-${v || "all"}`}
-            className={`relative h-9 shrink-0 rounded-full px-4 text-sm font-medium transition ${type === v ? "text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:text-foreground"}`}>
-            {type === v && <motion.span layoutId="type-pill" className="absolute inset-0 rounded-full bg-primary" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
-            <span className="relative">{l}</span>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="glass-nav mt-3 space-y-2.5 rounded-2xl p-3 sm:p-4" data-testid="panel-filters">
+        <ChipRow label="Type" id="type" value={type} options={TYPES} onChange={setType} />
+        <ChipRow label="Status" id="status" value={status} options={STATUSES} onChange={setStatus} />
+        <ChipRow label="Sort" id="sort" value={sort} options={SORTS} onChange={setSort} />
+        <ChipRow label="Released" id="period" value={period} options={PERIODS} onChange={setPeriod} />
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground sm:w-20">Genres</span>
+          <button onClick={() => setShowGenres(!showGenres)} aria-expanded={showGenres} className={`flex h-8 items-center gap-1.5 rounded-full px-3.5 text-xs font-medium sm:text-sm ${genres.length ? "border border-primary bg-primary/15 text-primary" : "glass-btn lift text-muted-foreground hover:text-foreground"}`} data-testid="button-toggle-genres">
+            <SlidersHorizontal className="h-3.5 w-3.5" />{genres.length ? `${genres.length} selected` : "Choose genres"}
           </button>
-        ))}
-        <button onClick={() => setShowGenres(!showGenres)} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium ${genres.length ? "border-primary text-primary" : "border-border bg-card text-muted-foreground"}`} data-testid="button-toggle-genres">
-          <SlidersHorizontal className="h-4 w-4" />Genres{genres.length ? ` · ${genres.length}` : ""}
-        </button>
-        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-status">
-          <option value="">Any status</option><option value="ongoing">Releasing</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option><option value="cancelled">Cancelled</option>
-        </select>
-        <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-sort">
-          <option value="popular">Most popular</option><option value="trending">Trending</option><option value="score">Top rated</option><option value="new">Newest</option><option value="chapters">Most chapters</option><option value="az">A–Z</option>
-        </select>
-      </div>
+          {active > 0 && <button onClick={reset} className="ml-auto text-xs font-medium text-primary hover:underline" data-testid="button-clear-filters">Clear all ({active})</button>}
+        </div>
+        {dq && sort === "popular" && <p className="pl-[76px] text-[11px] text-muted-foreground sm:pl-[92px]">Showing best matches for “{dq}”. Pick a sort to change the order.</p>}
+      </motion.div>
 
       <AnimatePresence initial={false}>
         {showGenres && (

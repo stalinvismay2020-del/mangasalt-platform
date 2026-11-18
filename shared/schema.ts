@@ -116,11 +116,12 @@ export const reports = sqliteTable("reports", {
 
 // ---------- Insert / validation schemas ----------
 export const signupSchema = z.object({
-  username: z.string().min(3).max(20).regex(/^[a-z0-9_]+$/i, "Letters, numbers and underscores only"),
-  password: z.string().min(6).max(100),
-  displayName: z.string().min(1).max(40),
+  username: z.string().trim().min(3, "Username needs at least 3 characters").max(20, "Username can be at most 20 characters").regex(/^[a-z0-9_]+$/i, "Username: letters, numbers and _ only (no spaces)"),
+  password: z.string().min(6, "Password needs at least 6 characters").max(100),
+  displayName: z.string().trim().min(1, "Add a display name").max(40),
+  email: z.string().trim().email("That email doesn't look right").max(120).optional().or(z.literal("")),
 });
-export const loginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
+export const loginSchema = z.object({ username: z.string().trim().min(1, "Enter your username or email"), password: z.string().min(1, "Enter your password") });
 
 export const insertCommentSchema = createInsertSchema(comments)
   .omit({ id: true, userId: true, hidden: true, createdAt: true })

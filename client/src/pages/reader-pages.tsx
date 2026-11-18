@@ -1,3 +1,4 @@
+import { NotFoundView } from "@/pages/not-found";
 // Reader pages: shelves, stats, timeline, reader profiles, discovery, notifications.
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -291,7 +292,7 @@ export function ReaderProfilePage({ params }: { params: { username: string } }) 
   const [list, setList] = useState<"followers" | "following" | null>(null);
   if (q.isLoading) return <div className="mx-auto max-w-3xl px-4 pt-6"><div className="h-40 animate-pulse rounded-2xl bg-muted" /></div>;
   const p = q.data;
-  if (!p) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground">Reader not found.</div>;
+  if (!p) return <NotFoundView embedded title="Reader not found" message="No reader has that username, or the profile was removed." />;
   const earned = p.badges.filter((b) => b.earned);
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 pb-10 pt-4 sm:px-6">

@@ -37,21 +37,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   const db = storage.raw();
 
   // ---------- auth ----------
+  const findLogin = (id: string): any => id.includes("@") ? db.prepare(`SELECT * FROM users WHERE lower(email) = lower(?)`).get(id.trim()) : storage.getUserByUsername(id.trim());
+  const banMsg = (r: any) => `This account is suspended${r.ban_reason ? `: ${r.ban_reason}` : ""}. Contact support if you think this is a mistake.`;
   app.post("/api/auth/signup", (req, res) => {
     const p = signupSchema.safeParse(req.body);
     if (!p.success) return res.status(400).json({ message: p.error.issues[0]?.message ?? "Invalid details" });
-    if (storage.getUserByUsername(p.data.username)) return res.status(409).json({ message: "That username is taken" });
+    if (storage.getUserByUsername(p.data.username)) return res.status(409).json({ message: "That username is taken. Try another." });
+    const email = p.data.email ? p.data.email.toLowerCase() : null;
+    if (email && db.prepare(`SELECT 1 FROM users WHERE email = ?`).get(email)) return res.status(409).json({ message: "An account with that email already exists. Sign in instead." });
     const u = storage.createUser(p.data.username, p.data.password, p.data.displayName);
+    if (email) db.prepare(`UPDATE users SET email = ? WHERE id = ?`).run(email, u.id);
     const t = storage.createSession(u.id);
     res.json({ token: t, user: storage.userFromToken(t) });
   });
   app.post("/api/auth/login", (req, res) => {
     const p = loginSchema.safeParse(req.body);
-    if (!p.success) return res.status(400).json({ message: "Enter username and password" });
-    const r = storage.getUserByUsername(p.data.username);
-    if (!r || !verifyPassword(p.data.password, r.password)) return res.status(401).json({ message: "Wrong username or password" });
-    if (r.banned) return res.status(403).json({ message: `This account is suspended${r.ban_reason ? `: ${r.ban_reason}` : ""}. Contact support if you think this is a mistake.` });
+    if (!p.success) return res.status(400).json({ message: p.error.issues[0]?.message ?? "Enter username and password" });
+    const r = findLogin(p.data.username);
+    if (!r || !verifyPassword(p.data.password, r.password)) return res.status(401).json({ message: r?.google_sub && !p.data.username.includes("@") ? "Wrong password" : r?.google_sub ? "This account uses Google. Tap Continue with Google." : "Wrong username or password" });
+    if (r.banned) return res.status(403).json({ message: banMsg(r) });
     const t = storage.createSession(r.id);
+    res.json({ token: t, user: storage.userFromToken(t) });
+  });
+
+  // ---------- Google sign-in (Google Identity Services ID token) ----------
+  const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID?.trim() || "";
+  app.get("/api/auth/config", (_req, res) => res.json({ googleClientId: GOOGLE_CLIENT_ID || null }));
+  app.post("/api/auth/google", async (req, res) => {
+    if (!GOOGLE_CLIENT_ID) return res.status(503).json({ message: "Google sign-in isn't set up yet." });
+    const credential = String(req.body?.credential ?? "");
+    if (!credential || credential.length > 4096) return res.status(400).json({ message: "Missing Google credential" });
+    let info: any;
+    try {
+      const r = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+      info = await r.json();
+      if (!r.ok) throw new Error(info?.error_description || "invalid");
+    } catch { return res.status(401).json({ message: "Google sign-in failed. Please try again." }); }
+    const issOk = info.iss === "accounts.google.com" || info.iss === "https://accounts.google.com";
+    if (info.aud !== GOOGLE_CLIENT_ID || !issOk || Number(info.exp) * 1000 < Date.now()) return res.status(401).json({ message: "Google sign-in couldn't be verified." });
+    if (info.email_verified !== true && info.email_verified !== "true") return res.status(401).json({ message: "Verify your Google email first." });
+    const email = String(info.email).toLowerCase(), sub = String(info.sub);
+    let row: any = db.prepare(`SELECT * FROM users WHERE google_sub = ?`).get(sub) ?? db.prepare(`SELECT * FROM users WHERE email = ?`).get(email);
+    if (row) {
+      if (!row.google_sub) db.prepare(`UPDATE users SET google_sub = ? WHERE id = ?`).run(sub, row.id); // link existing account with the same verified email
+    } else {
+      const base = (email.split("@")[0].toLowerCase().replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "reader").slice(0, 15).padEnd(3, "0");
+      let name = base;
+      for (let i = 0; storage.getUserByUsername(name); i++) name = `${base}${Math.floor(Math.random() * 9000) + 1000}`.slice(0, 20);
+      const u = storage.createUser(name, randomBytes(24).toString("hex"), String(info.name || info.given_name || name).slice(0, 40));
+      db.prepare(`UPDATE users SET email = ?, google_sub = ? WHERE id = ?`).run(email, sub, u.id);
+      row = db.prepare(`SELECT * FROM users WHERE id = ?`).get(u.id);
+    }
+    if (row.banned) return res.status(403).json({ message: banMsg(row) });
+    const t = storage.createSession(row.id);
     res.json({ token: t, user: storage.userFromToken(t) });
   });
   app.post("/api/auth/logout", (req, res) => { const t = token(req); if (t) storage.deleteSession(t); res.json({ ok: true }); });
@@ -206,7 +244,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const str = (k: string, n = 80) => (typeof req.query[k] === "string" ? String(req.query[k]).trim().slice(0, n) : "");
     res.json(await worldSearch({
       q: str("q") || undefined, genres: str("genres", 300).split(",").filter(Boolean), type: str("type") || undefined,
-      status: str("status") || undefined, sort: str("sort") || undefined, page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
+      status: str("status") || undefined, sort: str("sort") || undefined, period: str("period") || undefined, page: Math.max(1, Math.min(100, Number(req.query.page) || 1)),
     }));
   }));
   app.get("/api/world/title/:id", wrap(async (req, res) => {

@@ -18,10 +18,11 @@ const ORIGIN: Record<string, string> = { manga: "Japan", manhwa: "Korea", manhua
 export default function TitlePage() {
   const { id } = useParams<{ id: string }>();
   const [, nav] = useLocation();
-  const { data: t, isLoading, isError } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
+  const { data: t, isLoading, isError, error, refetch } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
   const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`] });
   const [more, setMore] = useState(false);
 
+  if (isError && ![404, 400].includes((error as any)?.status)) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground" role="alert"><p>This title couldn't load. Check your connection and try again.</p><button onClick={() => refetch()} className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Try again</button></div>;
   if (isError) return (
     <div className="mx-auto max-w-xl px-4 py-24 text-center">
       <Globe2 className="mx-auto h-9 w-9 text-primary" />

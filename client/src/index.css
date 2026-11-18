@@ -408,3 +408,17 @@ html.a11y-reduce-motion *, html.a11y-reduce-motion *::before, html.a11y-reduce-m
 .a11y-reduce-motion .ambient, .a11y-reduce-motion .float-slow, .a11y-reduce-motion .logo-shine { animation: none !important; }
 .a11y-reduce-motion .ambient .speck { display: none; }
 @media (prefers-reduced-motion: reduce) { .ambient .orb, .ambient .speck, .float-slow, .logo-shine { animation: none !important; } .ambient .speck { display: none; } }
+
+/* ---------- Home page only: posters bob in a wave ---------- */
+@keyframes home-bob { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-12px) } }
+.home-float .rail-item, .home-float [data-testid^="card-series-"] > div:first-child { animation: home-bob 4s ease-in-out infinite; }
+.home-float .rail-item:hover, .home-float [data-testid^="card-series-"]:hover > div:first-child { animation-play-state: paused; }
+.home-float .rail-item:nth-child(6n+2), .home-float :nth-child(6n+2) > [data-testid^="card-series-"] > div:first-child { animation-delay: -.6s; }
+.home-float .rail-item:nth-child(6n+3), .home-float :nth-child(6n+3) > [data-testid^="card-series-"] > div:first-child { animation-delay: -1.2s; }
+.home-float .rail-item:nth-child(6n+4), .home-float :nth-child(6n+4) > [data-testid^="card-series-"] > div:first-child { animation-delay: -1.8s; }
+.home-float .rail-item:nth-child(6n+5), .home-float :nth-child(6n+5) > [data-testid^="card-series-"] > div:first-child { animation-delay: -2.4s; }
+.home-float .rail-item:nth-child(6n), .home-float :nth-child(6n) > [data-testid^="card-series-"] > div:first-child { animation-delay: -3s; }
+/* room so floating posters aren't clipped by the scrolling rail */
+.home-float .rail-item { margin-top: 14px; }
+.a11y-reduce-motion .home-float * { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .home-float * { animation: none !important; } }

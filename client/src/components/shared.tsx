@@ -1,6 +1,6 @@
 import { API_BASE } from "@/lib/queryClient";
 import { flushSync } from "react-dom";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool, CalendarDays, ArrowUp } from "lucide-react";
@@ -161,28 +161,93 @@ export function ToastBridge() {
 }
 
 // ---------- Auth dialog ----------
+declare global { interface Window { google?: any } }
+let gisPromise: Promise<void> | null = null;
+const loadGis = () => gisPromise ??= new Promise<void>((ok, fail) => {
+  if (window.google?.accounts?.id) return ok();
+  const sc = document.createElement("script");
+  sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = () => ok(); sc.onerror = () => { gisPromise = null; fail(new Error("Couldn't load Google sign-in")); };
+  document.head.appendChild(sc);
+});
+
+function GoogleButton({ onToken, onError, signup }: { onToken: (c: string) => void; onError: (m: string) => void; signup: boolean }) {
+  const { data } = useQuery<{ googleClientId: string | null }>({ queryKey: ["/api/auth/config"], staleTime: Infinity });
+  const ref = useRef<HTMLDivElement>(null);
+  const cid = data?.googleClientId;
+  useEffect(() => {
+    if (!cid || !ref.current) return;
+    let alive = true;
+    loadGis().then(() => {
+      if (!alive || !ref.current) return;
+      window.google.accounts.id.initialize({ client_id: cid, callback: (r: any) => (r?.credential ? onToken(r.credential) : onError("Google sign-in was cancelled.")), ux_mode: "popup", itp_support: true });
+      ref.current.innerHTML = "";
+      window.google.accounts.id.renderButton(ref.current, { theme: document.documentElement.classList.contains("dark") ? "filled_black" : "outline", size: "large", shape: "pill", text: signup ? "signup_with" : "continue_with", width: Math.min(360, ref.current.offsetWidth || 320) });
+    }).catch((e) => onError(e.message));
+    return () => { alive = false; };
+  }, [cid, signup]);
+  if (data === undefined) return <div className="shimmer h-10 overflow-hidden rounded-full bg-muted" aria-hidden />;
+  if (!cid) return (
+    <button type="button" disabled className="glass-btn flex h-10 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full text-sm font-medium opacity-60" title="Google sign-in will be available soon" data-testid="button-google-disabled">
+      <GoogleG />Continue with Google <span className="text-xs text-muted-foreground">(coming soon)</span>
+    </button>
+  );
+  return <div ref={ref} className="flex min-h-10 w-full justify-center [color-scheme:light]" data-testid="button-google" />;
+}
+const GoogleG = () => (
+  <svg viewBox="0 0 48 48" className="h-4 w-4" aria-hidden><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.3-.4-3.5z"/></svg>
+);
+
 export function AuthDialog() {
   const { authOpen, closeAuth, openAuth, signIn } = useApp();
-  const [form, setForm] = useState({ username: "", password: "", displayName: "" });
+  const empty = { username: "", password: "", displayName: "", email: "" };
+  const [form, setForm] = useState(empty);
   const [error, setError] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const isSignup = authOpen === "signup";
   useEffect(() => setError(""), [authOpen]);
+  const done = (d: any) => { signIn(d.token, d.user); setForm(empty); };
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", isSignup ? "/api/auth/signup" : "/api/auth/login", isSignup ? form : { username: form.username, password: form.password })).json(),
-    onSuccess: (d: any) => { signIn(d.token, d.user); setForm({ username: "", password: "", displayName: "" }); },
+    onSuccess: done,
     onError: (e: Error) => setError(e.message),
   });
+  const g = useMutation({
+    mutationFn: async (credential: string) => (await apiRequest("POST", "/api/auth/google", { credential })).json(),
+    onSuccess: done,
+    onError: (e: Error) => setError(e.message),
+  });
+  // live hints so people know why a sign-up would fail before they submit
+  const u = form.username;
+  const userHint = !isSignup || !u ? "" : u.length < 3 ? "At least 3 characters" : u.length > 20 ? "At most 20 characters" : !/^[a-z0-9_]+$/i.test(u) ? "Letters, numbers and _ only" : "";
+  const pwHint = isSignup && form.password && form.password.length < 6 ? `${6 - form.password.length} more character${form.password.length === 5 ? "" : "s"}` : "";
+  const blocked = isSignup && (!!userHint || !!pwHint);
   return (
     <Dialog open={!!authOpen} onOpenChange={(o) => !o && closeAuth()}>
-      <DialogContent className="max-w-md border-white/10 sm:rounded-2xl">
+      <DialogContent className="max-h-[92dvh] max-w-md overflow-y-auto border-white/10 sm:rounded-2xl">
         <DialogTitle className="font-display text-2xl font-semibold">{isSignup ? "Join MANGASALT" : "Welcome back"}</DialogTitle>
         <DialogDescription>{isSignup ? "Like series, follow creators, and keep your reading history." : "Sign in to like, comment and follow."}</DialogDescription>
-        <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
-          {isSignup && <Input placeholder="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} data-testid="input-displayname" required />}
-          <Input placeholder="Username" autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} data-testid="input-username" required />
-          <Input placeholder="Password" type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="input-password" required />
-          {error && <p className="text-sm text-primary" data-testid="text-auth-error">{error}</p>}
-          <Button type="submit" disabled={m.isPending} className="mt-1 rounded-full" data-testid="button-auth-submit">
+        <div className="mt-2">
+          <GoogleButton signup={isSignup} onToken={(c) => { setError(""); g.mutate(c); }} onError={setError} />
+          {g.isPending && <p className="mt-2 flex items-center justify-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />Signing in with Google…</p>}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground" aria-hidden><span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" /></div>
+        <form className="flex flex-col gap-3" noValidate onSubmit={(e) => { e.preventDefault(); if (!blocked) m.mutate(); }}>
+          {isSignup && <Input placeholder="Display name (e.g. Asha Rao)" aria-label="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} data-testid="input-displayname" required />}
+          <div>
+            <Input placeholder={isSignup ? "Username (e.g. asha_reads)" : "Username or email"} aria-label={isSignup ? "Username" : "Username or email"} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              value={form.username} onChange={(e) => setForm({ ...form, username: isSignup ? e.target.value.replace(/\s+/g, "_").toLowerCase() : e.target.value })} data-testid="input-username" required aria-invalid={!!userHint} aria-describedby="hint-username" />
+            {isSignup && <p id="hint-username" className={`mt-1 px-1 text-xs ${userHint ? "text-primary" : "text-muted-foreground"}`}>{userHint || "3–20 letters, numbers or _"}</p>}
+          </div>
+          {isSignup && <Input type="email" placeholder="Email (optional, lets you sign in with it)" aria-label="Email" autoComplete="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="input-email" />}
+          <div>
+            <div className="relative">
+              <Input placeholder="Password" type={showPw ? "text" : "password"} autoComplete={isSignup ? "new-password" : "current-password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="input-password" required className="pr-16" aria-describedby="hint-password" />
+              <button type="button" onClick={() => setShowPw((v) => !v)} className="absolute inset-y-0 right-2 my-auto h-7 rounded-full px-2 text-xs font-medium text-muted-foreground hover:text-foreground" aria-pressed={showPw}>{showPw ? "Hide" : "Show"}</button>
+            </div>
+            {isSignup && <p id="hint-password" className={`mt-1 px-1 text-xs ${pwHint ? "text-primary" : "text-muted-foreground"}`}>{pwHint || "At least 6 characters"}</p>}
+          </div>
+          {error && <p className="rounded-lg bg-primary/10 px-3 py-2 text-sm text-primary" role="alert" data-testid="text-auth-error">{error}</p>}
+          <Button type="submit" disabled={m.isPending || blocked} className="mt-1 rounded-full" data-testid="button-auth-submit">
             {m.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSignup ? "Create account" : "Sign in"}
           </Button>
           <p className="text-center text-sm text-muted-foreground">

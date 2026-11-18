@@ -48,6 +48,9 @@ addColumn("users", "can_publish", "INTEGER NOT NULL DEFAULT 1");
 addColumn("users", "private_profile", "INTEGER NOT NULL DEFAULT 0");
 addColumn("users", "country", "TEXT");
 addColumn("users", "notify_prefs", "TEXT NOT NULL DEFAULT '{}'");
+addColumn("users", "email", "TEXT");
+addColumn("users", "google_sub", "TEXT");
+sqlite.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_email ON users(email) WHERE email IS NOT NULL; CREATE UNIQUE INDEX IF NOT EXISTS users_google ON users(google_sub) WHERE google_sub IS NOT NULL;`);
 addColumn("series", "approval", "TEXT NOT NULL DEFAULT 'approved'"); // pending | approved | rejected
 addColumn("series", "review_note", "TEXT");
 addColumn("series", "regions", "TEXT NOT NULL DEFAULT ''"); // '' worldwide | 'only:IN,US' | 'except:CN'

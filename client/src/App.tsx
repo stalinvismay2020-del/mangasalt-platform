@@ -19,7 +19,7 @@ import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge, AmbientBackdrop,
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
-import NotFound from "@/pages/not-found";
+import NotFound, { ErrorBoundary } from "@/pages/not-found";
 import Legal from "@/pages/legal";
 import { Link } from "wouter";
 import { ShelfPage, StatsPage, TimelinePage, ReadersPage, ReaderProfilePage, NotificationsPage } from "@/pages/reader-pages";
@@ -58,11 +58,15 @@ function Shell() {
     <>
       <ScrollTop />
       <ToastBridge />
-      <Switch>
-        <Route path="/read/:id/:page" component={Reader} />
-        <Route path="/read/:id" component={Reader} />
-        <Route path="/mp/:id/:key" component={OfficialReader} />
-      </Switch>
+      <ErrorBoundary resetKey={loc}>
+        <div>
+          <Switch>
+            <Route path="/read/:id/:page" component={Reader} />
+            <Route path="/read/:id" component={Reader} />
+            <Route path="/mp/:id/:key" component={OfficialReader} />
+          </Switch>
+        </div>
+      </ErrorBoundary>
       <AuthDialog />
     </>
   );
@@ -75,7 +79,7 @@ function Shell() {
       <AmbientBackdrop />
       <TopBar />
       <motion.main id="main" tabIndex={-1} className="outline-none" key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 14, filter: "blur(4px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
-        <AppRouter />
+        <ErrorBoundary resetKey={loc}><AppRouter /></ErrorBoundary>
       </motion.main>
       <footer className="mt-10 border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">

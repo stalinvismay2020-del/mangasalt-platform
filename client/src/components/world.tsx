@@ -71,7 +71,7 @@ export function WorldRail({ title, kicker, icon: Icon, items, loading, ranked, a
       </div>
       <div ref={ref} className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:scroll-px-6 sm:gap-4 sm:px-6">
         {loading || !items ? Array.from({ length: 7 }).map((_, k) => <div key={k} className="w-32 shrink-0 sm:w-40"><PosterSkel /></div>)
-          : items.map((m, k) => <div key={m.id} className={`shrink-0 snap-start ${ranked ? "w-36 pl-4 sm:w-44" : "w-32 sm:w-40"}`}><WorldPoster m={m} index={k} rank={ranked ? k + 1 : undefined} /></div>)}
+          : items.map((m, k) => <div key={m.id} className={`rail-item shrink-0 snap-start ${ranked ? "w-36 pl-4 sm:w-44" : "w-32 sm:w-40"}`}><WorldPoster m={m} index={k} rank={ranked ? k + 1 : undefined} /></div>)}
       </div>
     </section>
   );

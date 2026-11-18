@@ -1,3 +1,4 @@
+import { NotFoundView } from "@/pages/not-found";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence, useScroll, useSpring } from "framer-motion";
@@ -187,6 +188,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
   if (isLoading) return <div className="flex min-h-screen items-center justify-center bg-black"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading chapter" /></div>;
   if (error || !data) {
     const st = (error as any)?.status;
+    if (st === 404) return <div className="min-h-screen bg-background text-foreground"><NotFoundView title="Chapter not found" message={(error as Error).message && !/not found/i.test((error as Error).message) ? (error as Error).message : "This chapter doesn't exist or isn't published yet."} /></div>;
     return (
       <div className="mx-auto max-w-md px-4 py-24 text-center text-muted-foreground" role="alert">
         <p>{st === 451 ? (error as Error).message : st === 404 ? (error as Error).message || "This chapter is not available." : "This chapter couldn't load. Check your connection."}</p>

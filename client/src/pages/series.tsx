@@ -1,3 +1,4 @@
+import { NotFoundView } from "@/pages/not-found";
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,14 +15,15 @@ import type { SeriesDetail, CommentItem } from "@shared/schema";
 import { FavouriteButton, AddToShelf, ChapterCounter, ReportButton, RegionBanner } from "@/components/platform";
 
 export default function SeriesPage({ params }: { params: { slug: string } }) {
-  const { data, isLoading, error } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
+  const { data, isLoading, error, refetch } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
   const [tab, setTab] = useState<"chapters" | "comments">("chapters");
   const [asc, setAsc] = useState(true);
   const [more, setMore] = useState(false);
   const [, navigate] = useLocation();
 
   if (isLoading) return <div className="mx-auto max-w-5xl px-4 pt-6"><div className="h-72 animate-pulse rounded-2xl bg-muted" /></div>;
-  if (error || !data) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground">This series could not be found. <Link href="/search" className="text-primary">Browse series</Link></div>;
+  if (error && (error as any).status !== 404 && (error as any).status !== 451) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground" role="alert"><p>This series couldn't load. Check your connection and try again.</p><button onClick={() => refetch()} className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Try again</button></div>;
+  if (error || !data) return <NotFoundView embedded title={(error as any)?.status === 451 ? "Not available in your region" : "Series not found"} message={(error as any)?.status === 451 ? (error as Error).message : "This series doesn't exist or was removed. Try searching for it."} />;
   const { series: s, chapters, resume, bookmarks } = data;
   const readable = chapters.filter((c) => c.pageCount > 0);
   const first = readable[0];

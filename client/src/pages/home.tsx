@@ -40,7 +40,7 @@ function Hero({ items }: { items?: WorldCard[] }) {
       <HeroAmbience color={glow} />
       <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 pb-10 pt-6 sm:px-6 md:grid-cols-2 md:pb-16 md:pt-12">
         <motion.div className="relative mx-auto h-[300px] w-[205px] sm:h-[380px] sm:w-[255px] md:order-2 md:h-[450px] md:w-[300px]"
-          animate={{ y: [0, -6, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}>
+          animate={{ y: [0, -22, 0], rotate: [-1.5, 1.5, -1.5] }} transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}>
           {list.map((it, idx) => {
             const off = (idx - i + list.length) % list.length;
             if (off > 2) return null;
@@ -92,16 +92,30 @@ function Hero({ items }: { items?: WorldCard[] }) {
 function HeroAmbience({ color }: { color: string }) {
   const reduce = useReducedMotion();
   if (reduce) return null;
-  const dots = [12, 28, 46, 64, 82, 92];
+  const dots = [8, 18, 28, 40, 52, 64, 74, 86, 94];
+  const shapes = [
+    { l: "6%", t: "18%", s: 46, d: 6, k: "ring" }, { l: "88%", t: "12%", s: 30, d: 7, k: "diamond" },
+    { l: "44%", t: "8%", s: 18, d: 5, k: "star" }, { l: "12%", t: "72%", s: 24, d: 6.5, k: "diamond" },
+    { l: "80%", t: "70%", s: 54, d: 8, k: "ring" }, { l: "58%", t: "82%", s: 16, d: 5.5, k: "star" },
+  ];
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-      <motion.div className="absolute -left-20 top-10 h-64 w-64 rounded-full blur-3xl" style={{ background: color, opacity: 0.18 }}
-        animate={{ x: [0, 40, 0], y: [0, 20, 0] }} transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }} />
-      <motion.div className="absolute -right-16 bottom-10 h-72 w-72 rounded-full bg-primary blur-3xl" style={{ opacity: 0.12 }}
-        animate={{ x: [0, -30, 0], y: [0, -24, 0] }} transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div className="absolute -left-24 top-6 h-80 w-80 rounded-full blur-3xl" style={{ background: color, opacity: 0.26 }}
+        animate={{ x: [0, 90, 0], y: [0, 50, 0], scale: [1, 1.2, 1] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} />
+      <motion.div className="absolute -right-20 bottom-4 h-96 w-96 rounded-full bg-primary blur-3xl" style={{ opacity: 0.18 }}
+        animate={{ x: [0, -70, 0], y: [0, -60, 0], scale: [1, 1.15, 1] }} transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }} />
+      {shapes.map((f, k) => (
+        <motion.span key={k} className="absolute" style={{ left: f.l, top: f.t, width: f.s, height: f.s }}
+          animate={{ y: [0, -34, 0], x: [0, k % 2 ? 14 : -14, 0], rotate: [0, k % 2 ? 180 : -180, k % 2 ? 360 : -360] }}
+          transition={{ duration: f.d, repeat: Infinity, ease: "easeInOut", delay: k * 0.6 }}>
+          {f.k === "ring" && <span className="block h-full w-full rounded-full border-2 border-primary/40 shadow-[0_0_24px_hsl(var(--primary)/0.35)]" />}
+          {f.k === "diamond" && <span className="block h-full w-full rotate-45 rounded-md border border-white/25 bg-white/5 backdrop-blur-sm" />}
+          {f.k === "star" && <Sparkles className="h-full w-full text-primary/70 drop-shadow-[0_0_8px_hsl(var(--primary))]" />}
+        </motion.span>
+      ))}
       {dots.map((l, k) => (
-        <motion.span key={k} className="absolute bottom-6 h-1 w-1 rounded-full bg-primary/70" style={{ left: `${l}%` }}
-          animate={{ y: [0, -260], opacity: [0, 0.6, 0] }} transition={{ duration: 8 + k, repeat: Infinity, delay: k * 1.3, ease: "easeOut" }} />
+        <motion.span key={`d${k}`} className="absolute bottom-4 rounded-full bg-primary/80 shadow-[0_0_10px_hsl(var(--primary))]" style={{ left: `${l}%`, width: 3 + (k % 3), height: 3 + (k % 3) }}
+          animate={{ y: [0, -420], x: [0, k % 2 ? 24 : -24, 0], opacity: [0, 0.9, 0] }} transition={{ duration: 6 + (k % 4), repeat: Infinity, delay: k * 0.8, ease: "easeOut" }} />
       ))}
     </div>
   );
@@ -225,7 +239,7 @@ export default function Home() {
   const mine = useQuery<{ saved: WorldShelfItem[]; reading: WorldShelfItem[] }>({ queryKey: ["/api/me/world"], enabled: !!user });
   const local = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { order: "trending" }] });
   return (
-    <div>
+    <div className="home-float">
       <Hero items={data?.trending} />
       <div className="mx-auto max-w-6xl space-y-12 px-4 pb-16 sm:px-6">
 {user && mine.data?.reading.length ? <Reveal><ContinueReading items={mine.data.reading} /></Reveal> : null}

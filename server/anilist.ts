@@ -32,7 +32,7 @@ const CARD = `id title { english romaji } bannerImage description(asHtml:false) 
 const SAFE_GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mahou Shoujo", "Mecha", "Music", "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller"];
 const SORTS: Record<string, string[]> = {
   trending: ["TRENDING_DESC", "POPULARITY_DESC"], popular: ["POPULARITY_DESC"], score: ["SCORE_DESC"], new: ["START_DATE_DESC"], match: ["SEARCH_MATCH"], az: ["TITLE_ENGLISH"],
-  chapters: ["CHAPTERS_DESC"],
+  chapters: ["CHAPTERS_DESC"], best: ["SCORE_DESC", "POPULARITY_DESC"], top: ["FAVOURITES_DESC", "SCORE_DESC"],
 };
 const STATUS: Record<string, string> = { ongoing: "RELEASING", completed: "FINISHED", hiatus: "HIATUS", upcoming: "NOT_YET_RELEASED", cancelled: "CANCELLED" };
 const COUNTRY: Record<string, string> = { manga: "JP", manhwa: "KR", manhua: "CN" };
@@ -84,7 +84,7 @@ export async function onlyOfficial(cards: WorldCard[], waitMs = 3500): Promise<W
   return res.filter((x): x is WorldCard => !!x);
 }
 
-export async function worldSearch(o: { q?: string; genres?: string[]; type?: string; status?: string; sort?: string; page?: number; perPage?: number }) {
+export async function worldSearch(o: { q?: string; genres?: string[]; type?: string; status?: string; sort?: string; period?: string; page?: number; perPage?: number }) {
   const sort = SORTS[o.sort ?? (o.q ? "match" : "trending")] ?? SORTS.trending;
   const vars: any = { page: o.page ?? 1, perPage: Math.min(o.perPage ?? 24, 50), sort: o.q || sort[0] !== "SEARCH_MATCH" ? sort : ["POPULARITY_DESC"] };
   if (o.q) vars.search = o.q;
@@ -92,9 +92,16 @@ export async function worldSearch(o: { q?: string; genres?: string[]; type?: str
   if (g.length) vars.genres = g;
   if (o.type && COUNTRY[o.type]) vars.country = COUNTRY[o.type];
   if (o.status && STATUS[o.status]) vars.status = STATUS[o.status];
-  const q = `query ($page:Int,$perPage:Int,$search:String,$genres:[String],$country:CountryCode,$status:MediaStatus,$sort:[MediaSort]) {
+  // "best" only counts well-known titles so a 3-vote 10/10 doesn't win
+  if (o.sort === "best") vars.minPop = 5000;
+  const y = new Date().getFullYear();
+  const PERIODS: Record<string, [number?, number?]> = { year: [y * 10000], recent: [(y - 5) * 10000], "2010s": [20100000, 20200000], "2000s": [20000000, 20100000], classic: [undefined, 20000000] };
+  const per = o.period ? PERIODS[o.period] : undefined;
+  if (per?.[0]) vars.after = per[0];
+  if (per?.[1]) vars.before = per[1];
+  const q = `query ($page:Int,$perPage:Int,$search:String,$genres:[String],$country:CountryCode,$status:MediaStatus,$sort:[MediaSort],$minPop:Int,$after:FuzzyDateInt,$before:FuzzyDateInt) {
     Page(page:$page, perPage:$perPage) { pageInfo { hasNextPage total currentPage }
-      media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, format_not:NOVEL) { ${CARD} } } }`;
+      media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, popularity_greater:$minPop, startDate_greater:$after, startDate_lesser:$before, format_not:NOVEL) { ${CARD} } } }`;
   const d = await gql(q, vars);
   return { items: await onlyOfficial(d.Page.media.map(card)), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
 }
