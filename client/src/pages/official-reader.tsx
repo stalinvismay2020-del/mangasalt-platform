@@ -2,11 +2,16 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins, MessageCircle } from "lucide-react";
+import { Comments } from "@/pages/series";
+import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
 import { Button } from "@/components/ui/button";
 import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
 import type { WorldDetail, WorldChapters } from "@shared/world";
+
+/** Stable positive 31-bit id for a publisher chapter key, so comments can be filed per chapter. */
+export const chapterNum = (k: string) => { let h = 0; for (let i = 0; i < k.length; i++) h = (Math.imul(31, h) + k.charCodeAt(i)) | 0; return (h & 0x7fffffff) || 1; };
 
 // Hosts that serve the app inside a strict sandbox (no same-origin) pass that sandbox to embedded readers, which then can't start.
 const SANDBOXED = typeof window !== "undefined" && window.origin === "null"; // opaque origin = sandbox without same-origin
@@ -20,6 +25,7 @@ export default function OfficialReader() {
   const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`] });
   const [loaded, setLoaded] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [talk, setTalk] = useState(false);
 
   const all = ch.data?.chapters ?? [];
   const readable = all.filter((c) => c.inApp);
@@ -49,6 +55,8 @@ export default function OfficialReader() {
     window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey);
   }, [next?.key, prev?.key]);
   const access = cur?.access === "wait" ? "Wait-free on " + (cur.publisher ?? "publisher") : cur?.access === "coins" ? "Unlock with " + (cur.publisher ?? "publisher") + " coins" : cur ? "Free · " + (cur.publisher ?? "Official") : "";
+
+  if (t.error) return isNotFound(t.error) ? <NotFound what="title" /> : <LoadError message={(t.error as Error).message} onRetry={() => { t.refetch(); ch.refetch(); }} />;
 
   return (
     <div className="fixed inset-0 bg-black text-white">
@@ -89,6 +97,7 @@ export default function OfficialReader() {
               <p className="truncate text-[13px] font-semibold leading-tight" data-testid="text-reader-title">{t.data?.title ?? "Loading…"}</p>
               <p className="truncate text-[11px] leading-tight text-white/65">{cur ? `Ch. ${cur.number}${cur.title ? ` · ${cur.title}` : ""} · ${access}` : ch.isLoading ? "Loading chapter…" : "Chapter unavailable"}</p>
             </div>
+            {cur && <button onClick={() => setTalk(true)} className="glass-btn grid h-10 w-10 shrink-0 place-items-center rounded-full transition hover:bg-white/20 active:scale-90" aria-label="Chapter comments" data-testid="button-reader-comments"><MessageCircle className="h-5 w-5" /></button>}
             <button onClick={() => setDrawer(true)} className="glass-btn grid h-10 w-10 shrink-0 place-items-center rounded-full transition hover:bg-white/20 active:scale-90" aria-label="Chapters" data-testid="button-reader-chapters"><List className="h-5 w-5" /></button>
           </motion.header>
         )}
@@ -108,6 +117,18 @@ export default function OfficialReader() {
           )}
         </div>
       </motion.footer>
+
+      <AnimatePresence>
+        {talk && cur && (
+          <>
+            <motion.div className="fixed inset-0 z-30 bg-black/60" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setTalk(false)} />
+            <motion.aside className="dark fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-white/10 bg-neutral-950/90 text-foreground backdrop-blur-2xl" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} data-testid="panel-chapter-comments">
+              <div className="flex items-center justify-between border-b border-white/10 p-4"><p className="font-semibold">Chapter {cur.number} comments</p><button onClick={() => setTalk(false)} aria-label="Close"><X className="h-5 w-5" /></button></div>
+              <div className="flex-1 overflow-y-auto px-4 pb-6"><Comments seriesId={-Number(id)} chapterId={chapterNum(cur.key)} base={`/api/world/title/${id}/comments`} /></div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {drawer && (

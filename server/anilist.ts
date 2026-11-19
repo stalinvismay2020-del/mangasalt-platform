@@ -1,5 +1,5 @@
 // AniList GraphQL client: worldwide manga / manhwa / manhua catalogue (metadata only).
-// Chapters of licensed titles are NOT hosted here. Only titles with a verified official English edition are shown.
+// Chapters of licensed titles are NOT hosted here. Every title is listed; `official` names its verified English publishers (empty = none found yet).
 import { officialCache } from "./storage";
 import { mangadexEnglish } from "./mangadex";
 const ENDPOINT = "https://graphql.anilist.co";
@@ -15,13 +15,28 @@ async function gql(query: string, variables: Record<string, any>) {
     if (hit) return hit.v;
     throw Object.assign(new Error("AniList is busy, try again in a moment"), { status: 503 });
   }
-  const res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ query, variables }) });
+  let res: Response | undefined, json: any;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      res = await fetch(ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ query, variables }) });
+      if (res.status === 429) break;
+      json = await res.json();
+      break;
+    } catch {
+      // network hiccup or empty body: retry with a short backoff
+      json = undefined;
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  if (!res || (res.status !== 429 && !json)) {
+    if (hit) return hit.v;
+    throw Object.assign(new Error("Catalogue is temporarily unavailable, try again"), { status: 503 });
+  }
   if (res.status === 429) {
     blockedUntil = Date.now() + (Number(res.headers.get("retry-after")) || 30) * 1000;
     if (hit) return hit.v;
     throw Object.assign(new Error("AniList is busy, try again in a moment"), { status: 503 });
   }
-  const json: any = await res.json();
   if (json.errors?.length) throw Object.assign(new Error(json.errors[0].message), { status: res.status === 404 ? 404 : 502 });
   cache.set(key, { t: Date.now(), v: json.data });
   if (cache.size > 800) cache.delete(cache.keys().next().value!);
@@ -64,24 +79,31 @@ function card(m: any): WorldCard {
   };
 }
 
-/** Keep only titles with an official English edition. AniList first; if it lists none, ask MangaDex before dropping the title. */
+/** Look up official English publishers. AniList first; if it lists none, ask MangaDex in the background. Titles are never hidden. */
 let mdQueue: Promise<any> = Promise.resolve();
-async function verify(c: WorldCard): Promise<WorldCard | null> {
+const pending = new Map<number, Promise<string[] | null | undefined>>();
+function lookup(c: WorldCard): Promise<string[] | null | undefined> {
+  if (pending.has(c.id)) return pending.get(c.id)!;
+  // serialise MangaDex lookups (rate limit ~5 req/s)
+  const job = mdQueue.then(() => mangadexEnglish(c.id, [c.title, c.altTitle ?? ""]).catch(() => undefined)).then((site) => {
+    if (site !== undefined) officialCache.set(c.id, site ? [site] : null);
+    pending.delete(c.id);
+    return site === undefined ? undefined : site ? [site] : null;
+  });
+  mdQueue = job.then(() => new Promise((r) => setTimeout(r, 220)));
+  pending.set(c.id, job);
+  return job;
+}
+async function annotate(c: WorldCard, waitMs: number): Promise<WorldCard> {
   if (c.official.length) { officialCache.set(c.id, c.official); return c; }
   const known = officialCache.get(c.id);
   if (known) return { ...c, official: known };
-  if (known === null) return null;
-  // serialise MangaDex lookups (rate limit ~5 req/s)
-  const job = mdQueue.then(() => mangadexEnglish(c.id, [c.title, c.altTitle ?? ""]).catch(() => undefined));
-  mdQueue = job.then(() => new Promise((r) => setTimeout(r, 220)));
-  const site = await job;
-  if (site === undefined) return null; // lookup failed: hide for now, retry next time
-  officialCache.set(c.id, site ? [site] : null);
-  return site ? { ...c, official: [site] } : null;
+  if (known === null) return c;
+  const found = await Promise.race([lookup(c), new Promise<undefined>((r) => setTimeout(() => r(undefined), waitMs))]);
+  return found ? { ...c, official: found } : c;
 }
-export async function onlyOfficial(cards: WorldCard[], waitMs = 3500): Promise<WorldCard[]> {
-  const res = await Promise.all(cards.map((c) => Promise.race([verify(c), new Promise<null>((r) => setTimeout(() => r(null), waitMs))])));
-  return res.filter((x): x is WorldCard => !!x);
+export async function withOfficial(cards: WorldCard[], waitMs = 1200): Promise<WorldCard[]> {
+  return Promise.all(cards.map((c) => annotate(c, waitMs)));
 }
 
 export async function worldSearch(o: { q?: string; genres?: string[]; type?: string; status?: string; sort?: string; page?: number; perPage?: number }) {
@@ -96,7 +118,7 @@ export async function worldSearch(o: { q?: string; genres?: string[]; type?: str
     Page(page:$page, perPage:$perPage) { pageInfo { hasNextPage total currentPage }
       media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, format_not:NOVEL) { ${CARD} } } }`;
   const d = await gql(q, vars);
-  return { items: await onlyOfficial(d.Page.media.map(card)), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
+  return { items: await withOfficial(d.Page.media.map(card)), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
 }
 
 export async function worldTitle(id: number) {
@@ -105,11 +127,11 @@ export async function worldTitle(id: number) {
     staff(perPage:4, sort:RELEVANCE) { edges { role node { name { full } } } }
     externalLinks { site url type language color icon }
     recommendations(perPage:10, sort:RATING_DESC) { nodes { mediaRecommendation { ${CARD} isAdult } } } } }`;
-  const d = await gql(q, { id });
-  const m = d.Media;
+  if (!Number.isInteger(id) || id <= 0) throw Object.assign(new Error("Title not found"), { status: 404 });
+  const d = await gql(q, { id }).catch((e: any) => { if (/not found/i.test(e.message)) e.status = 404; throw e; });
+  const m = d?.Media;
   if (!m || m.isAdult) throw Object.assign(new Error("Title not found"), { status: 404 });
-  const base = (await onlyOfficial([card(m)], 8000))[0];
-  if (!base) throw Object.assign(new Error("This title has no official English edition yet"), { status: 404, code: "NO_OFFICIAL_EN" });
+  const base = (await withOfficial([card(m)], 4000))[0];
   const tapasUrl = (m.externalLinks ?? []).find((l: any) => /tapas\.io\/series\//.test(l.url ?? "") && l.language === "English")?.url ?? null;
   return {
     ...base, tapasUrl,
@@ -118,7 +140,7 @@ export async function worldTitle(id: number) {
     tags: (m.tags ?? []).filter((t: any) => !t.isMediaSpoiler).slice(0, 8).map((t: any) => t.name),
     staff: (m.staff?.edges ?? []).map((e: any) => ({ name: e.node.name.full, role: e.role })),
     readLinks: base.official.map((site) => ({ site })),
-    recommendations: await onlyOfficial((m.recommendations?.nodes ?? []).map((n: any) => n.mediaRecommendation).filter((x: any) => x && !x.isAdult).map(card), 2500),
+    recommendations: await withOfficial((m.recommendations?.nodes ?? []).map((n: any) => n.mediaRecommendation).filter((x: any) => x && !x.isAdult).map(card), 800),
   };
 }
 

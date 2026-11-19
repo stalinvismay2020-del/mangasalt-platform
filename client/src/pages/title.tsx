@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { TypeBadge } from "@/components/shared";
 import { WorldLike, WorldSave, WorldPoster, STATUS_LABEL } from "@/components/world";
 import { Comments } from "@/pages/series";
+import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
 import { compact } from "@/lib/app-context";
 import type { WorldDetail, WorldChapters } from "@shared/world";
 
@@ -17,18 +18,11 @@ const ORIGIN: Record<string, string> = { manga: "Japan", manhwa: "Korea", manhua
 export default function TitlePage() {
   const { id } = useParams<{ id: string }>();
   const [, nav] = useLocation();
-  const { data: t, isLoading, isError } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
-  const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`] });
+  const { data: t, isLoading, error, refetch } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
+  const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`], enabled: !!t });
   const [more, setMore] = useState(false);
 
-  if (isError) return (
-    <div className="mx-auto max-w-xl px-4 py-24 text-center">
-      <Globe2 className="mx-auto h-9 w-9 text-primary" />
-      <p className="font-display mt-3 text-2xl">Not available in official English</p>
-      <p className="mt-2 text-sm text-muted-foreground">MANGASALT only lists titles with an official English release. We checked AniList and MangaDex and couldn't find one for this title.</p>
-      <Link href="/search" className="mt-5 inline-block rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground">Browse official titles</Link>
-    </div>
-  );
+  if (error) return isNotFound(error) ? <NotFound what="title" /> : <LoadError message={(error as Error).message} onRetry={() => refetch()} />;
   if (isLoading || !t) return <TitleSkeleton />;
 
   const readable = ch.data?.chapters.filter((c) => c.inApp) ?? [];
@@ -85,6 +79,11 @@ export default function TitlePage() {
               <WorldSave id={t.id} saved={t.savedByMe} />
             </div>
 
+            {t.official.length === 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground md:justify-start" data-testid="row-no-official">
+                <Info className="h-4 w-4" />No official English edition found yet. You can still like, save and discuss it.
+              </div>
+            )}
             {t.official.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs md:justify-start" data-testid="row-official">
                 <span className="flex items-center gap-1 font-semibold text-emerald-500"><BadgeCheck className="h-4 w-4" />Official English</span>

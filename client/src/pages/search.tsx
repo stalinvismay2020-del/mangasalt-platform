@@ -56,7 +56,7 @@ export default function Search() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
-      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua with an official English edition. Chapters open in the app wherever the publisher allows it." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
+      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua on AniList. Titles with an official English edition are marked, and chapters open in the app wherever the publisher allows it." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
       <label className="flex h-12 items-center gap-3 rounded-2xl border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40">
         <SearchIcon className="h-5 w-5 text-muted-foreground" />
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search One Piece, Solo Leveling, Omniscient Reader…"
@@ -111,7 +111,7 @@ export default function Search() {
       )}
 
       <p className="mb-4 mt-6 text-sm text-muted-foreground" data-testid="text-result-count">
-        {res.isLoading ? "Searching…" : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} official English title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
+        {res.isLoading ? "Searching…" : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
       </p>
       <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 lg:grid-cols-6">
         {res.isLoading ? Array.from({ length: 12 }).map((_, k) => <PosterSkel key={k} size="sm" />)

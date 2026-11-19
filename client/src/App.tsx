@@ -39,6 +39,7 @@ function Shell() {
         <Route path="/read/:id/:page" component={Reader} />
         <Route path="/read/:id" component={Reader} />
         <Route path="/mp/:id/:key" component={OfficialReader} />
+        <Route><NotFound /></Route>
       </Switch>
       <AuthDialog />
     </>
@@ -89,7 +90,7 @@ function AppRouter() {
       <Route path="/series/:slug" component={SeriesPage} />
       <Route path="/legal" component={Legal} />
       <Route path="/legal/:section" component={Legal} />
-      <Route component={NotFound} />
+      <Route><NotFound /></Route>
     </Switch>
   );
 }

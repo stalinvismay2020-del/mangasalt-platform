@@ -9,6 +9,7 @@ import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
 import { asset } from "@/components/shared";
 import { Comments } from "@/pages/series";
+import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
 import type { ChapterData, SeriesDetail } from "@shared/schema";
 
 export default function Reader({ params }: { params: { id: string; page?: string } }) {
@@ -16,7 +17,7 @@ export default function Reader({ params }: { params: { id: string; page?: string
   const { user, openAuth } = useApp();
   const { toast } = useToast();
   const [, navigate] = useLocation();
-  const { data, isLoading, error } = useQuery<ChapterData>({ queryKey: [`/api/chapters/${id}`] });
+  const { data, isLoading, error, refetch } = useQuery<ChapterData>({ queryKey: [`/api/chapters/${id}`] });
   const detail = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${data?.series.slug}`], enabled: !!data });
   const [chrome, setChrome] = useState(true);
   const [page, setPage] = useState(0);
@@ -80,7 +81,8 @@ export default function Reader({ params }: { params: { id: string; page?: string
   });
 
   if (isLoading) return <div className="flex min-h-screen items-center justify-center"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
-  if (error || !data) return <div className="mx-auto max-w-md px-4 py-24 text-center text-muted-foreground">This chapter is not available. <Link href="/" className="text-primary">Go home</Link></div>;
+  if (error) return isNotFound(error) ? <NotFound what="chapter" /> : <LoadError message={(error as Error).message} onRetry={() => refetch()} />;
+  if (!data) return null;
   const { chapter: c, series: s, prev, next } = data;
   const total = c.pages.length;
 

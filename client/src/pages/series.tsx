@@ -10,17 +10,19 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useApp, compact, timeAgo, rightsLabel, TYPE_ORIGIN } from "@/lib/app-context";
 import { asset, Avatar, TypeBadge, LikeButton, SaveButton, FollowButton } from "@/components/shared";
+import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
 import type { SeriesDetail, CommentItem } from "@shared/schema";
 
 export default function SeriesPage({ params }: { params: { slug: string } }) {
-  const { data, isLoading, error } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
+  const { data, isLoading, error, refetch } = useQuery<SeriesDetail>({ queryKey: [`/api/series/by-slug/${params.slug}`] });
   const [tab, setTab] = useState<"chapters" | "comments">("chapters");
   const [asc, setAsc] = useState(true);
   const [more, setMore] = useState(false);
   const [, navigate] = useLocation();
 
   if (isLoading) return <div className="mx-auto max-w-5xl px-4 pt-6"><div className="h-72 animate-pulse rounded-2xl bg-muted" /></div>;
-  if (error || !data) return <div className="mx-auto max-w-md px-4 py-20 text-center text-muted-foreground">This series could not be found. <Link href="/search" className="text-primary">Browse series</Link></div>;
+  if (error) return isNotFound(error) ? <NotFound what="series" /> : <LoadError message={(error as Error).message} onRetry={() => refetch()} />;
+  if (!data) return null;
   const { series: s, chapters, resume, bookmarks } = data;
   const readable = chapters.filter((c) => c.pageCount > 0);
   const first = readable[0];

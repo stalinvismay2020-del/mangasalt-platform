@@ -206,7 +206,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (body.length < 1 || body.length > 2000) return res.status(400).json({ message: "Comments need 1 to 2000 characters" });
     const parentId = req.body?.parentId ? Number(req.body.parentId) : null;
     if (parentId && storage.seriesIdOfComment(parentId) !== sid) return res.status(400).json({ message: "Reply target not found" });
-    res.json(storage.addComment((req as any).user.id, sid, body, !!req.body?.spoiler, parentId, null));
+    const chapterId = Number.isInteger(req.body?.chapterId) && req.body.chapterId > 0 ? req.body.chapterId : null;
+    res.json(storage.addComment((req as any).user.id, sid, body, !!req.body?.spoiler, parentId, chapterId));
   });
 
   // ---------- Creator Studio ----------
