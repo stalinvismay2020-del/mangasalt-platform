@@ -9,6 +9,7 @@ import { seedIfEmpty, ensurePepper, removePlaceholders } from "./seed";
 import { worldSearch, worldTitle, worldHome, WORLD_GENRES } from "./anilist";
 import { tapasEpisodes } from "./tapas";
 import { officialChapters } from "./mangadex";
+import { webtoonLink } from "./dawghwa";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
 const COOKIE = "__Host-ms_sid";
@@ -201,6 +202,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const tp = tapas.map((e) => ({ key: e.key, number: e.number, title: e.title, publishedAt: e.publishedAt, inApp: true, publisher: "Tapas", src: e.src, access: e.access }));
     const chapters = tp.length > md.filter((c: any) => c.inApp).length ? tp : md;
     res.json({ found: r.found || tp.length > 0, total: chapters.length, inApp: chapters.filter((c: any) => c.inApp).length, chapters, publishers: t.official });
+  }));
+  // Official WEBTOON page for a title (via Dawghwa's source matcher, exact matches only)
+  app.get("/api/world/title/:id/webtoon", wrap(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0 || id > 2147483647) return res.status(404).json({ message: "Title not found" });
+    res.json({ webtoon: await webtoonLink(id).catch(() => null) });
   }));
   app.post("/api/legal/takedown", (req, res) => {
     const b = req.body ?? {};

@@ -2,6 +2,7 @@
 // Chapters of licensed titles are NOT hosted here. Every title is listed; `official` names its verified English publishers (empty = none found yet).
 import { officialCache } from "./storage";
 import { mangadexEnglish } from "./mangadex";
+import { backupSearch } from "./dawghwa";
 const ENDPOINT = "https://graphql.anilist.co";
 const TTL = 10 * 60 * 1000;
 const cache = new Map<string, { t: number; v: any }>();
@@ -117,7 +118,13 @@ export async function worldSearch(o: { q?: string; genres?: string[]; type?: str
   const q = `query ($page:Int,$perPage:Int,$search:String,$genres:[String],$country:CountryCode,$status:MediaStatus,$sort:[MediaSort]) {
     Page(page:$page, perPage:$perPage) { pageInfo { hasNextPage total currentPage }
       media(type:MANGA, isAdult:false, search:$search, genre_in:$genres, genre_not_in:["Hentai","Ecchi"], countryOfOrigin:$country, status:$status, sort:$sort, format_not:NOVEL) { ${CARD} } } }`;
-  const d = await gql(q, vars);
+  let d: any;
+  try { d = await gql(q, vars); }
+  catch (e: any) {
+    // AniList busy or down: fall back to the Dawghwa catalogue (same AniList ids) so the app keeps working
+    if (e?.status === 404) throw e;
+    try { return await backupSearch(o); } catch { throw e; }
+  }
   return { items: await withOfficial(d.Page.media.map(card)), hasNext: d.Page.pageInfo.hasNextPage, page: d.Page.pageInfo.currentPage, total: d.Page.pageInfo.total };
 }
 

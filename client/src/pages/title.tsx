@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { Play, Star, Lock, Search as SearchIcon, ArrowDownUp, ChevronDown, BookOpen, CheckCircle2, Info, ArrowLeft, Users, Globe2, BadgeCheck, Clock, Coins, Share2 } from "lucide-react";
+import { Play, Star, Lock, Search as SearchIcon, ArrowDownUp, ChevronDown, BookOpen, CheckCircle2, Info, ArrowLeft, Users, Globe2, BadgeCheck, Clock, Coins, Share2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,8 @@ export default function TitlePage() {
   const [, nav] = useLocation();
   const { data: t, isLoading, error, refetch } = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });
   const ch = useQuery<WorldChapters>({ queryKey: [`/api/world/title/${id}/chapters`], enabled: !!t });
+  const wt = useQuery<{ webtoon: { url: string; title: string; latestChapter: number | null } | null }>({ queryKey: [`/api/world/title/${id}/webtoon`], enabled: !!t && t.type !== "manga", retry: false });
+  const webtoon = wt.data?.webtoon ?? null;
   const [more, setMore] = useState(false);
 
   if (error) return isNotFound(error) ? <NotFound what="title" /> : <LoadError message={(error as Error).message} onRetry={() => refetch()} />;
@@ -75,13 +77,25 @@ export default function TitlePage() {
                   <BookOpen className="h-4 w-4" />{ch.isLoading ? "Checking chapters…" : "Chapters"}
                 </Button>
               )}
+              {webtoon && (
+                <a href={webtoon.url} target="_blank" rel="noopener noreferrer" data-testid="link-read-webtoon"
+                  className="inline-flex h-11 items-center gap-2 rounded-full bg-[#00dc64] px-5 text-sm font-semibold text-black shadow-lg shadow-[#00dc64]/25 transition hover:brightness-110">
+                  <ExternalLink className="h-4 w-4" />Read on WEBTOON{webtoon.latestChapter ? ` · ${webtoon.latestChapter} eps` : ""}
+                </a>
+              )}
               <WorldLike id={t.id} liked={t.likedByMe} likes={t.likes} />
               <WorldSave id={t.id} saved={t.savedByMe} />
             </div>
 
-            {t.official.length === 0 && (
+            {t.official.length === 0 && !webtoon && (
               <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground md:justify-start" data-testid="row-no-official">
                 <Info className="h-4 w-4" />No official English edition found yet. You can still like, save and discuss it.
+              </div>
+            )}
+            {webtoon && t.official.length === 0 && (
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-xs md:justify-start" data-testid="row-official-webtoon">
+                <span className="flex items-center gap-1 font-semibold text-emerald-500"><BadgeCheck className="h-4 w-4" />Official English</span>
+                <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 font-medium text-emerald-600 dark:text-emerald-300">WEBTOON</span>
               </div>
             )}
             {t.official.length > 0 && (
