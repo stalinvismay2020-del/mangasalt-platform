@@ -106,13 +106,13 @@ export default function Search() {
 
       {local.data && local.data.length > 0 && (
         <div className="mt-6">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-500">Fully hosted on MANGASALT</p>
+          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-500">Creator originals on MANGASALT</p>
           <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{local.data.map((s, k) => <SeriesPoster key={s.id} s={s} index={k} onOpen={setOpenSeries} size="sm" />)}</div>
         </div>
       )}
 
       <p className="mb-4 mt-6 text-sm text-muted-foreground" data-testid="text-result-count">
-        {res.isLoading ? "Searching…" : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
+        {res.isLoading ? "Searching…" : !items.length && local.data?.length ? "No AniList titles match. Showing creator originals only." : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
       </p>
       <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 lg:grid-cols-6">
         {res.isLoading ? Array.from({ length: 12 }).map((_, k) => <PosterSkel key={k} size="sm" />)
@@ -121,7 +121,7 @@ export default function Search() {
       </div>
       <div ref={sentinel} className="h-4" />
       {res.isError && <p className="py-10 text-center text-sm text-muted-foreground">The catalogue is busy right now. <button className="font-medium text-primary" onClick={() => res.refetch()}>Try again</button></p>}
-      {!res.isLoading && !res.isError && items.length === 0 && (
+      {!res.isLoading && !res.isError && items.length === 0 && !(local.data?.length) && (
         <div className="py-12 text-center text-sm text-muted-foreground">No titles match these filters. <button className="font-medium text-primary hover:underline" onClick={reset} data-testid="button-reset-filters">Reset filters</button></div>
       )}
     </div>

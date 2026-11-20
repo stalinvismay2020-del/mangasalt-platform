@@ -10,6 +10,7 @@ export const db = drizzle(sqlite);
 sqlite.exec(`
 CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password TEXT NOT NULL, display_name TEXT NOT NULL, bio TEXT NOT NULL DEFAULT '', avatar_hue INTEGER NOT NULL DEFAULT 0, is_creator INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (token TEXT PRIMARY KEY, user_id INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS device_sessions (device TEXT PRIMARY KEY, token TEXT NOT NULL, updated_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS series (id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, type TEXT NOT NULL, genres TEXT NOT NULL DEFAULT '[]', synopsis TEXT NOT NULL, cover TEXT NOT NULL, creator_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'ongoing', views INTEGER NOT NULL DEFAULT 0, rights TEXT NOT NULL DEFAULT 'original', created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS chapters (id INTEGER PRIMARY KEY AUTOINCREMENT, series_id INTEGER NOT NULL, number INTEGER NOT NULL, title TEXT NOT NULL, pages TEXT NOT NULL DEFAULT '[]', created_at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS series_likes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, series_id INTEGER NOT NULL, created_at INTEGER NOT NULL, UNIQUE(user_id, series_id));
@@ -56,6 +57,7 @@ SELECT s.*, u.id AS u_id, u.username AS u_username, u.display_name AS u_display_
   (SELECT COALESCE(MAX(number),0) FROM chapters c WHERE c.series_id = s.id) AS latest_chapter,
   (SELECT COALESCE(MAX(created_at),0) FROM chapters c WHERE c.series_id = s.id) AS latest_chapter_at,
   (SELECT COUNT(*) FROM comments cm WHERE cm.series_id = s.id AND cm.created_at > @since) AS recent_comments,
+  (SELECT COUNT(DISTINCT h.user_id) FROM history h WHERE h.series_id = s.id AND h.viewed_at > @since) AS recent_readers,
   EXISTS(SELECT 1 FROM series_likes l WHERE l.series_id = s.id AND l.user_id = @me) AS liked_by_me,
   EXISTS(SELECT 1 FROM reading_list_items ri JOIN reading_lists rl ON rl.id = ri.list_id WHERE ri.series_id = s.id AND rl.user_id = @me AND rl.name = 'Saved') AS saved_by_me,
   EXISTS(SELECT 1 FROM follows f WHERE f.target_type='series' AND f.target_id = s.id AND f.user_id = @me) AS followed_by_me,
@@ -65,7 +67,7 @@ FROM series s JOIN users u ON u.id = s.creator_id`;
 function toCard(r: any): SeriesCard {
   return {
     id: r.id, slug: r.slug, title: r.title, type: r.type, genres: JSON.parse(r.genres), synopsis: r.synopsis, cover: r.cover,
-    status: r.status, views: r.views, rights: r.rights, likes: r.likes, recentLikes: r.recent_likes, chapterCount: r.chapter_count,
+    status: r.status, views: r.views, rights: r.rights, likes: r.likes, recentLikes: r.recent_likes, trendScore: r.recent_likes * 5 + r.recent_comments * 3 + r.recent_readers * 2, chapterCount: r.chapter_count,
     latestChapter: r.latest_chapter, latestChapterAt: r.latest_chapter_at, likedByMe: !!r.liked_by_me, savedByMe: !!r.saved_by_me, followedByMe: !!r.followed_by_me, rating: r.rating / 10, year: r.year, readable: !!r.readable,
     creator: { id: r.u_id, username: r.u_username, displayName: r.u_display_name, bio: r.u_bio, avatarHue: r.u_avatar_hue, isCreator: r.u_is_creator },
   };
@@ -97,7 +99,18 @@ export class Storage {
     const r = sqlite.prepare(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`).get(token);
     return r ? pub(r) : undefined;
   }
-  deleteSession(token: string) { sqlite.prepare(`DELETE FROM sessions WHERE token = ?`).run(token); }
+  deleteSession(token: string) {
+    sqlite.prepare(`DELETE FROM sessions WHERE token = ?`).run(token);
+    sqlite.prepare(`DELETE FROM device_sessions WHERE token = ?`).run(token);
+  }
+  /** Remember which account a browser/device is signed in to, so reopening the app keeps you signed in. */
+  rememberDevice(device: string, token: string) {
+    sqlite.prepare(`INSERT INTO device_sessions (device, token, updated_at) VALUES (?,?,?) ON CONFLICT(device) DO UPDATE SET token = excluded.token, updated_at = excluded.updated_at`).run(device, token, Date.now());
+  }
+  deviceToken(device: string): string | undefined {
+    return (sqlite.prepare(`SELECT token FROM device_sessions WHERE device = ?`).get(device) as any)?.token;
+  }
+  forgetDevice(device: string) { sqlite.prepare(`DELETE FROM device_sessions WHERE device = ?`).run(device); }
 
   // ---------- series ----------
   listSeries(opts: { me?: number; type?: string; q?: string; genre?: string; status?: string; order?: "trending" | "likes" | "latest" | "views" | "week" | "az" | "rating" | "match"; limit?: number }): SeriesCard[] {
@@ -115,7 +128,7 @@ export class Storage {
       az: `s.title COLLATE NOCASE ASC`,
       rating: `s.rating DESC`,
       match: opts.q ? `(CASE WHEN s.title LIKE @q THEN 0 ELSE 1 END), likes DESC` : `likes DESC`,
-      trending: `(recent_likes * 5 + recent_comments * 3 + s.views / 200.0) DESC`,
+      trending: `(recent_likes * 5 + recent_comments * 3 + recent_readers * 2 + s.views / 200.0) DESC, likes DESC, latest_chapter_at DESC`,
       likes: `likes DESC, s.views DESC`,
       latest: `latest_chapter_at DESC`,
       views: `s.views DESC`,
@@ -131,6 +144,7 @@ export class Storage {
     const likes = (sqlite.prepare(`SELECT COUNT(*) AS n FROM series_likes WHERE series_id = ?`).get(seriesId) as any).n;
     return { liked: !existing, likes };
   }
+  addView(seriesId: number) { sqlite.prepare(`UPDATE series SET views = views + 1 WHERE id = ?`).run(seriesId); }
   seriesExists(id: number) { return !!sqlite.prepare(`SELECT 1 FROM series WHERE id = ?`).get(id); }
 
   // ---------- creators ----------

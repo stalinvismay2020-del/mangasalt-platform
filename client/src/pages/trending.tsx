@@ -3,10 +3,11 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Flame, Crown, Star, TrendingUp, Trophy, Users, ArrowUpRight, Sparkles } from "lucide-react";
-import { TypeBadge } from "@/components/shared";
+import { TypeBadge, RankRow as CreatorRankRow } from "@/components/shared";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { compact } from "@/lib/app-context";
 import type { WorldCard, WorldPage } from "@shared/world";
+import type { SeriesCard } from "@shared/schema";
 
 const TABS = [
   ["trending", "Trending", TrendingUp],
@@ -165,6 +166,26 @@ function RankRow({ s, rank, order, max }: { s: WorldCard; rank: number; order: s
   );
 }
 
+/** Series published by creators on MANGASALT, ranked by this week's likes, comments and readers. */
+function CreatorChart({ type }: { type: string }) {
+  const q = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { order: "trending", type }], staleTime: 30_000 });
+  const items = (q.data ?? []).filter((s) => s.readable && s.rights !== "cc-by-4.0").slice(0, 10);
+  if (!items.length) return null;
+  const max = Math.max(1, ...items.map((s) => s.trendScore ?? 0));
+  return (
+    <section className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-3 sm:p-4" data-testid="section-creator-trending">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.16em] text-primary"><Sparkles className="h-3.5 w-3.5" />Rising on MANGASALT</p>
+        <Link href="/studio" className="text-xs font-medium text-muted-foreground hover:text-primary" data-testid="link-publish-yours">Publish yours</Link>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">Creator originals ranked by likes, comments and readers this week.</p>
+      <ol className="mt-1">
+        {items.map((s, k) => <CreatorRankRow key={s.id} s={s} rank={k + 1} score={s.trendScore ? s.trendScore : undefined} max={max} unit="trend points this week" />)}
+      </ol>
+    </section>
+  );
+}
+
 export default function Trending() {
   const [order, setOrder] = useState<string>("trending");
   const [type, setType] = useState("");
@@ -208,6 +229,8 @@ export default function Trending() {
               className={`relative shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${type === v ? "border-foreground bg-foreground text-background" : "border-border bg-card/50 text-muted-foreground hover:text-foreground"}`}>{l}</button>
           ))}
         </div>
+
+        <CreatorChart type={type} />
 
         {q.isLoading && <div className="shimmer relative mt-6 h-72 overflow-hidden rounded-2xl bg-muted" />}
         <AnimatePresence mode="wait">

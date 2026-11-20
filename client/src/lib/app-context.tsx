@@ -32,6 +32,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [manual]);
   const [authOpen, setAuthOpen] = useState<Ctx["authOpen"]>(false);
   const [openSeries, setOpenSeries] = useState<SeriesCard | null>(null);
+  // Restore the sign-in this device used last time, before showing the app.
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let done = false;
+    const finish = () => { if (!done) { done = true; setReady(true); } };
+    const timer = setTimeout(finish, 5000);
+    apiRequest("GET", "/api/auth/restore")
+      .then((r) => r.json())
+      .then((d: { token: string | null; user: PublicUser | null }) => {
+        if (!done && d.token && d.user) { setAuthToken(d.token); setUser(d.user); queryClient.clear(); }
+      })
+      .catch(() => {})
+      .finally(() => { clearTimeout(timer); finish(); });
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -65,6 +79,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openSeries,
     setOpenSeries,
   };
+  if (!ready) return (
+    <div className="grid min-h-dvh place-items-center bg-background" aria-busy="true" data-testid="splash-restoring">
+      <div className="flex flex-col items-center gap-3">
+        <span className="font-display text-2xl font-semibold tracking-tight">MANGA<span className="text-primary">SALT</span></span>
+        <span className="h-1 w-24 overflow-hidden rounded-full bg-muted"><span className="block h-full w-1/2 animate-pulse rounded-full bg-primary" /></span>
+      </div>
+    </div>
+  );
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }
 

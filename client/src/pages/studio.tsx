@@ -108,7 +108,7 @@ function CoverPicker({ value, onChange }: { value: string; onChange: (p: string)
         : <span className="flex h-full flex-col items-center justify-center gap-2 p-3 text-center text-xs text-muted-foreground"><ImagePlus className="h-6 w-6 text-primary" />Upload cover<br />(2:3 portrait)</span>}
       {value && <span className="absolute inset-0 grid place-items-center bg-black/50 text-xs font-medium text-white opacity-0 transition group-hover:opacity-100">Change cover</span>}
       {busy && <span className="absolute inset-0 grid place-items-center bg-black/60"><Loader2 className="h-6 w-6 animate-spin text-primary" /></span>}
-      <input ref={ref} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} data-testid="input-cover-file" />
+      <input ref={ref} type="file" accept="image/*" className="hidden" onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }} data-testid="input-cover-file" />
     </button>
   );
 }
@@ -153,7 +153,7 @@ function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]
   const [drag, setDrag] = useState(false);
   const { toast } = useToast();
   const add = async (files: File[]) => {
-    files = files.filter((f) => f.type.startsWith("image/")).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    files = files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     for (const f of files) {
       let slices: string[];
       try { slices = await prepareImage(f); } catch (e: any) { toast({ title: "Skipped a file", description: e.message }); continue; }
@@ -161,9 +161,14 @@ function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]
       setPages((p) => [...p, ...items]);
       await Promise.all(items.map(async (it, i) => {
         try { const path = await uploadData(slices[i]); setPages((p) => p.map((x) => (x.key === it.key ? { ...x, path, status: "done" } : x))); }
-        catch { setPages((p) => p.map((x) => (x.key === it.key ? { ...x, status: "error" } : x))); }
+        catch (e: any) { setPages((p) => p.map((x) => (x.key === it.key ? { ...x, status: "error" } : x))); toast({ title: "A page didn't upload", description: e?.message ?? "Try again" }); }
       }));
     }
+  };
+  const retry = async (key: string, data: string) => {
+    setPages((p) => p.map((x) => (x.key === key ? { ...x, status: "uploading" } : x)));
+    try { const path = await uploadData(data); setPages((p) => p.map((x) => (x.key === key ? { ...x, path, status: "done" } : x))); }
+    catch (e: any) { setPages((p) => p.map((x) => (x.key === key ? { ...x, status: "error" } : x))); toast({ title: "Still couldn't upload", description: e?.message }); }
   };
   const move = (i: number, d: number) => setPages((p) => { const a = [...p]; const j = i + d; if (j < 0 || j >= a.length) return a; [a[i], a[j]] = [a[j], a[i]]; return a; });
   return (
@@ -173,8 +178,8 @@ function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]
         className={`flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed px-6 py-8 text-center transition ${drag ? "scale-[1.01] border-primary bg-primary/10" : "border-border bg-card/50 hover:border-primary/60"}`}>
         <motion.span animate={{ y: [0, -5, 0] }} transition={{ duration: 2, repeat: Infinity }} className="grid h-11 w-11 place-items-center rounded-full bg-primary/15 text-primary"><Upload className="h-5 w-5" /></motion.span>
         <p className="font-semibold">Drop pages here or tap to choose</p>
-        <p className="max-w-sm text-xs text-muted-foreground">PNG, JPEG or WebP. Files are sorted by name. Long webtoon strips are split into pages automatically.</p>
-        <input ref={ref} type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} data-testid="input-page-files" />
+        <p className="max-w-sm text-xs text-muted-foreground">Photos from your gallery (JPEG, PNG or WebP). Files are sorted by name. Long webtoon strips are split into pages automatically.</p>
+        <input ref={ref} type="file" multiple accept="image/*" className="hidden" onChange={(e) => { add(Array.from(e.target.files ?? [])); e.target.value = ""; }} data-testid="input-page-files" />
       </div>
       {pages.length > 0 && (
         <Reorder.Group axis="y" values={pages} onReorder={(v) => setPages(() => v)} className="mt-4 space-y-2">
@@ -185,8 +190,9 @@ function PageUploader({ pages, setPages }: { pages: Pg[]; setPages: (f: (p: Pg[]
                 <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
                 <img src={p.preview} alt="" className="h-14 w-10 shrink-0 rounded object-cover" draggable={false} />
                 <div className="min-w-0 flex-1"><p className="text-sm font-medium">Page {i + 1}</p>
-                  <p className={`text-xs ${p.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{p.status === "uploading" ? "Uploading…" : p.status === "error" ? "Upload failed, remove and retry" : "Ready"}</p></div>
+                  <p className={`text-xs ${p.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>{p.status === "uploading" ? "Uploading…" : p.status === "error" ? "Upload failed" : "Ready"}</p></div>
                 {p.status === "uploading" && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                {p.status === "error" && <button type="button" onClick={() => retry(p.key, p.preview)} className="rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground" data-testid={`button-retry-page-${i + 1}`}>Retry</button>}
                 <button type="button" onClick={() => move(i, -1)} disabled={i === 0} className="grid h-8 w-8 place-items-center rounded-full hover:bg-accent disabled:opacity-30" aria-label="Move up"><ArrowUp className="h-4 w-4" /></button>
                 <button type="button" onClick={() => move(i, 1)} disabled={i === pages.length - 1} className="grid h-8 w-8 place-items-center rounded-full hover:bg-accent disabled:opacity-30" aria-label="Move down"><ArrowDown className="h-4 w-4" /></button>
                 <button type="button" onClick={() => setPages((a) => a.filter((x) => x.key !== p.key))} className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-destructive/15 hover:text-destructive" aria-label="Remove page" data-testid={`button-remove-page-${i + 1}`}><Trash2 className="h-4 w-4" /></button>

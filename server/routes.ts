@@ -11,9 +11,29 @@ import { tapasEpisodes } from "./tapas";
 import { officialChapters } from "./mangadex";
 import { signupSchema, loginSchema, SERIES_TYPES } from "@shared/schema";
 
+const COOKIE = "__Host-ms_sid";
+function cookieToken(req: Request) {
+  const m = (req.headers.cookie ?? "").match(/(?:^|;\s*)__Host-ms_sid=([a-f0-9]{48})/);
+  return m?.[1];
+}
 function token(req: Request) {
   const h = req.headers.authorization;
-  return h?.startsWith("Bearer ") ? h.slice(7) : undefined;
+  return h?.startsWith("Bearer ") ? h.slice(7) : cookieToken(req);
+}
+/** Stable id for this browser: the preview/hosting proxy sends X-Visitor-Id on every request. */
+function device(req: Request) {
+  const v = req.headers["x-visitor-id"];
+  return typeof v === "string" && v.length >= 8 && v.length <= 200 ? v : undefined;
+}
+function isHttps(req: Request) { return req.secure || String(req.headers["x-forwarded-proto"] ?? "").startsWith("https"); }
+/** Keep the user signed in across app restarts: a secure cookie plus a per-device record on the server. */
+function remember(req: Request, res: Response, t: string) {
+  const d = device(req); if (d) storage.rememberDevice(d, t);
+  if (isHttps(req)) res.append("Set-Cookie", `${COOKIE}=${t}; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=None; Partitioned`);
+}
+function forget(req: Request, res: Response) {
+  const d = device(req); if (d) storage.forgetDevice(d);
+  if (isHttps(req)) res.append("Set-Cookie", `${COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None; Partitioned`);
 }
 function me(req: Request) { return storage.userFromToken(token(req)); }
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -35,6 +55,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (storage.getUserByUsername(p.data.username)) return res.status(409).json({ message: "That username is taken" });
     const u = storage.createUser(p.data.username, p.data.password, p.data.displayName);
     const t = storage.createSession(u.id);
+    remember(req, res, t);
     res.json({ token: t, user: storage.userFromToken(t) });
   });
   app.post("/api/auth/login", (req, res) => {
@@ -43,10 +64,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const r = storage.getUserByUsername(p.data.username);
     if (!r || !verifyPassword(p.data.password, r.password)) return res.status(401).json({ message: "Wrong username or password" });
     const t = storage.createSession(r.id);
+    remember(req, res, t);
     res.json({ token: t, user: storage.userFromToken(t) });
   });
-  app.post("/api/auth/logout", (req, res) => { const t = token(req); if (t) storage.deleteSession(t); res.json({ ok: true }); });
+  app.post("/api/auth/logout", (req, res) => { const t = token(req); if (t) storage.deleteSession(t); forget(req, res); res.json({ ok: true }); });
   app.get("/api/auth/me", (req, res) => res.json({ user: me(req) ?? null }));
+  // Restore the account this device was signed in to (used when the app opens).
+  app.get("/api/auth/restore", (req, res) => {
+    const candidates = [token(req), (() => { const d = device(req); return d ? storage.deviceToken(d) : undefined; })()];
+    for (const t of candidates) {
+      const u = t ? storage.userFromToken(t) : undefined;
+      if (t && u) { remember(req, res, t); return res.json({ token: t, user: u }); }
+    }
+    res.json({ token: null, user: null });
+  });
 
   // ---------- home + discovery ----------
   app.get("/api/home", (req, res) => res.json(storage.home(me(req)?.id)));
@@ -77,6 +108,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const id = Number(req.params.id);
     const u = me(req);
     if (u && storage.seriesExists(id)) storage.addHistory(u.id, id);
+    else if (!u && storage.seriesExists(id)) storage.addView(id);
     res.json({ ok: true });
   });
 

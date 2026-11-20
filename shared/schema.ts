@@ -153,6 +153,8 @@ export type SeriesCard = {
   rights: string;
   likes: number;
   recentLikes: number;
+  /** Activity in the last 7 days: likes x5, comments x3, readers x2 */
+  trendScore?: number;
   chapterCount: number;
   latestChapter: number;
   latestChapterAt: number;

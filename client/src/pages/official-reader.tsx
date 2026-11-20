@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins, MessageCircle } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins, MessageCircle, ExternalLink } from "lucide-react";
 import { Comments } from "@/pages/series";
 import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
 import { safeDecode } from "@/lib/utils";
@@ -64,9 +64,10 @@ export default function OfficialReader() {
       <div className="absolute inset-0">
         {cur?.src && SANDBOXED ? (
           <div className="grid h-full place-items-center p-6 text-center" data-testid="notice-sandboxed">
-            <div className="max-w-sm"><Lock className="mx-auto h-8 w-8 text-primary" /><p className="mt-3 font-semibold">This preview link can't load the publisher's reader</p>
-              <p className="mt-2 text-sm text-white/60">The official reader for Chapter {cur.number} opens inside MANGASALT when the app runs on its own domain. This private preview host blocks it for security.</p>
-              <Button className="mt-4 rounded-full" onClick={() => nav(`/title/${id}`)}>Back to chapters</Button></div>
+            <div className="max-w-sm"><Lock className="mx-auto h-8 w-8 text-primary" /><p className="mt-3 font-semibold">Read Chapter {cur.number} on {cur.publisher ?? "the publisher's site"}</p>
+              <p className="mt-2 text-sm text-white/60">This private preview can't show the publisher's reader inside the app. Open it on {cur.publisher ?? "the publisher"}: it's free and official. Inside the published app it opens right here.</p>
+              <a href={cur.src} target="_blank" rel="noopener noreferrer" className="mt-4 inline-flex h-10 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground" data-testid="link-open-publisher"><ExternalLink className="h-4 w-4" />Open on {cur.publisher ?? "publisher"}</a>
+              <div><Button variant="ghost" className="mt-2 rounded-full text-white/70 hover:text-white" onClick={() => nav(`/title/${id}`)}>Back to chapters</Button></div></div>
           </div>
         ) : cur?.src ? (
           <>
