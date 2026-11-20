@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ChevronLeft, ChevronRight, List, Loader2, Lock, X, Eye, EyeOff, Clock, Coins, MessageCircle } from "lucide-react";
 import { Comments } from "@/pages/series";
 import NotFound, { LoadError, isNotFound } from "@/pages/not-found";
+import { safeDecode } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { apiRequest, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp } from "@/lib/app-context";
@@ -18,7 +19,7 @@ const SANDBOXED = typeof window !== "undefined" && window.origin === "null"; // 
 
 export default function OfficialReader() {
   const { id, key: rawKey } = useParams<{ id: string; key: string }>();
-  const key = decodeURIComponent(rawKey);
+  const key = safeDecode(rawKey);
   const [, nav] = useLocation();
   const { user } = useApp();
   const t = useQuery<WorldDetail>({ queryKey: [`/api/world/title/${id}`] });

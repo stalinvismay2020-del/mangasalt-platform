@@ -3,7 +3,7 @@ import { flushSync } from "react-dom";
 import { useState, useEffect, type ReactNode } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool } from "lucide-react";
+import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, EyeOff, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, invalidatePrefixes } from "@/lib/queryClient";
 import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
 import type { PublicUser, SeriesCard } from "@shared/schema";
+import { normalizeUsername, USERNAME_RE } from "@shared/username";
 
 const API_ASSET = (p: string) => (p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/") ? `.${p}` : p);
 export const asset = API_ASSET;
@@ -160,11 +161,14 @@ export function AuthDialog() {
   const { authOpen, closeAuth, openAuth, signIn } = useApp();
   const [form, setForm] = useState({ username: "", password: "", displayName: "" });
   const [error, setError] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const isSignup = authOpen === "signup";
-  useEffect(() => setError(""), [authOpen]);
+  useEffect(() => { setError(""); setShowPw(false); }, [authOpen]);
+  const uname = String(normalizeUsername(form.username));
+  const userIssue = uname.length < 3 ? "At least 3 characters" : uname.length > 24 ? "At most 24 characters" : !USERNAME_RE.test(uname) ? "Use letters, numbers, _ . or - only" : null;
   const m = useMutation({
     mutationFn: async () => (await apiRequest("POST", isSignup ? "/api/auth/signup" : "/api/auth/login", isSignup ? form : { username: form.username, password: form.password })).json(),
-    onSuccess: (d: any) => { signIn(d.token, d.user); setForm({ username: "", password: "", displayName: "" }); },
+    onSuccess: (d: any) => { signIn(d.token, d.user); setForm({ username: "", password: "", displayName: "" }); setShowPw(false); },
     onError: (e: Error) => setError(e.message),
   });
   return (
@@ -172,10 +176,26 @@ export function AuthDialog() {
       <DialogContent className="max-w-md border-white/10 sm:rounded-2xl">
         <DialogTitle className="font-display text-2xl font-semibold">{isSignup ? "Join MANGASALT" : "Welcome back"}</DialogTitle>
         <DialogDescription>{isSignup ? "Like series, follow creators, and keep your reading history." : "Sign in to like, comment and follow."}</DialogDescription>
-        <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); m.mutate(); }}>
+        <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (m.isPending) return; if (isSignup && userIssue) return setError(userIssue); setError(""); m.mutate(); }}>
           {isSignup && <Input placeholder="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} data-testid="input-displayname" required />}
-          <Input placeholder="Username" autoComplete="username" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} data-testid="input-username" required />
-          <Input placeholder="Password" type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} data-testid="input-password" required />
+          <div>
+            <Input placeholder="Username" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={form.username}
+              onChange={(e) => setForm({ ...form, username: e.target.value })} aria-describedby="username-hint" data-testid="input-username" required />
+            {isSignup && form.username.trim() && (
+              <p id="username-hint" className={`mt-1 px-1 text-xs ${userIssue ? "text-primary" : "text-muted-foreground"}`} data-testid="text-username-hint">
+                {userIssue ?? <>You'll be <span className="font-medium text-foreground">@{uname}</span></>}
+              </p>
+            )}
+          </div>
+          <div className="relative">
+            <Input placeholder="Password" type={showPw ? "text" : "password"} autoComplete={isSignup ? "new-password" : "current-password"} autoCapitalize="none" autoCorrect="off" spellCheck={false}
+              value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="pr-11" data-testid="input-password" required />
+            <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}
+              className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground" data-testid="button-toggle-password">
+              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+            {isSignup && form.password && form.password.length < 6 && <p className="mt-1 px-1 text-xs text-muted-foreground">{6 - form.password.length} more character{6 - form.password.length === 1 ? "" : "s"} needed</p>}
+          </div>
           {error && <p className="text-sm text-primary" data-testid="text-auth-error">{error}</p>}
           <Button type="submit" disabled={m.isPending} className="mt-1 rounded-full" data-testid="button-auth-submit">
             {m.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSignup ? "Create account" : "Sign in"}

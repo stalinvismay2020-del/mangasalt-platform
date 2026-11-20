@@ -127,7 +127,7 @@ export async function worldTitle(id: number) {
     staff(perPage:4, sort:RELEVANCE) { edges { role node { name { full } } } }
     externalLinks { site url type language color icon }
     recommendations(perPage:10, sort:RATING_DESC) { nodes { mediaRecommendation { ${CARD} isAdult } } } } }`;
-  if (!Number.isInteger(id) || id <= 0) throw Object.assign(new Error("Title not found"), { status: 404 });
+  if (!Number.isInteger(id) || id <= 0 || id > 2147483647) throw Object.assign(new Error("Title not found"), { status: 404 });
   const d = await gql(q, { id }).catch((e: any) => { if (/not found/i.test(e.message)) e.status = 404; throw e; });
   const m = d?.Media;
   if (!m || m.isAdult) throw Object.assign(new Error("Title not found"), { status: 404 });

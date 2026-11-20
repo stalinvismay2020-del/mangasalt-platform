@@ -1,5 +1,7 @@
 import { Switch, Route, Router } from "wouter";
 import { useHashLocation } from "wouter/use-hash-location";
+// Route on the path only, so links like #/search?q=solo still match /search
+const useHashPath = (): [string, (to: string, opts?: any) => void] => { const [loc, nav] = useHashLocation(); return [loc.split("?")[0] || "/", nav]; };
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,6 +22,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
 import NotFound from "@/pages/not-found";
+import { ErrorBoundary } from "@/components/error-boundary";
 import Legal from "@/pages/legal";
 import { Link } from "wouter";
 
@@ -35,12 +38,12 @@ function Shell() {
     <>
       <ScrollTop />
       <ToastBridge />
-      <Switch>
+      <ErrorBoundary resetKey={loc}><Switch>
         <Route path="/read/:id/:page" component={Reader} />
         <Route path="/read/:id" component={Reader} />
         <Route path="/mp/:id/:key" component={OfficialReader} />
         <Route><NotFound /></Route>
-      </Switch>
+      </Switch></ErrorBoundary>
       <AuthDialog />
     </>
   );
@@ -50,7 +53,7 @@ function Shell() {
       <ToastBridge />
       <TopBar />
       <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
-        <AppRouter />
+        <ErrorBoundary resetKey={loc}><AppRouter /></ErrorBoundary>
       </motion.main>
       <footer className="mt-10 border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
@@ -101,7 +104,7 @@ export default function App() {
       <AppProvider>
         <TooltipProvider>
           <Toaster />
-          <Router hook={useHashLocation}>
+          <Router hook={useHashPath as any}>
             <Shell />
           </Router>
         </TooltipProvider>

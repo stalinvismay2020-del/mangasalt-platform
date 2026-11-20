@@ -115,12 +115,16 @@ export const reports = sqliteTable("reports", {
 });
 
 // ---------- Insert / validation schemas ----------
+import { normalizeUsername, USERNAME_RE } from "./username";
+export { normalizeUsername, USERNAME_RE };
 export const signupSchema = z.object({
-  username: z.string().min(3).max(20).regex(/^[a-z0-9_]+$/i, "Letters, numbers and underscores only"),
-  password: z.string().min(6).max(100),
-  displayName: z.string().min(1).max(40),
+  username: z.preprocess(normalizeUsername, z.string({ message: "Choose a username" })
+    .min(3, "Username needs at least 3 characters").max(24, "Username can be at most 24 characters")
+    .regex(USERNAME_RE, "Username can use letters, numbers, _ . and - only")),
+  password: z.string({ message: "Choose a password" }).min(6, "Password needs at least 6 characters").max(100, "Password can be at most 100 characters"),
+  displayName: z.preprocess((v) => (typeof v === "string" ? v.trim() : v), z.string({ message: "Enter your name" }).min(1, "Enter your name").max(40, "Name can be at most 40 characters")),
 });
-export const loginSchema = z.object({ username: z.string().min(1), password: z.string().min(1) });
+export const loginSchema = z.object({ username: z.preprocess(normalizeUsername, z.string().min(1)), password: z.string().min(1) });
 
 export const insertCommentSchema = createInsertSchema(comments)
   .omit({ id: true, userId: true, hidden: true, createdAt: true })

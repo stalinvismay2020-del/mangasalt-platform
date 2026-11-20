@@ -62,14 +62,19 @@ app.use((req, res, next) => {
   next();
 });
 
+process.on("unhandledRejection", (e) => console.error("Unhandled rejection:", e));
+process.on("uncaughtException", (e) => console.error("Uncaught exception:", e));
+
 (async () => {
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    console.error("Internal Server Error:", err);
+    // Client mistakes (bad JSON, body too large) get a clear 4xx; only real server faults are logged as errors
+    const message = err.type === "entity.parse.failed" ? "Request body is not valid JSON"
+      : err.type === "entity.too.large" ? "Request is too large"
+      : status >= 500 ? "Something went wrong on our side. Please try again." : err.message || "Bad request";
+    if (status >= 500) console.error("Internal Server Error:", err);
 
     if (res.headersSent) {
       return next(err);

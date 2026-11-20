@@ -1,3 +1,4 @@
+import { safeDecode, hashQuery } from "@/lib/utils";
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "wouter";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -17,14 +18,14 @@ const TYPES: [string, string][] = [["", "All"], ["manga", "Manga"], ["manhwa", "
 export default function Search() {
   const params = useParams<{ genre?: string; type?: string }>();
   const { setOpenSeries } = useApp();
-  const [q, setQ] = useState("");
-  const [dq, setDq] = useState("");
+  const [q, setQ] = useState(() => hashQuery().get("q")?.slice(0, 80) ?? "");
+  const [dq, setDq] = useState(() => hashQuery().get("q")?.trim().slice(0, 80) ?? "");
   const [type, setType] = useState(params.type ?? "");
-  const [genres, setGenres] = useState<string[]>(params.genre ? [decodeURIComponent(params.genre)] : []);
+  const [genres, setGenres] = useState<string[]>(params.genre ? [safeDecode(params.genre)] : []);
   const [status, setStatus] = useState("");
   const [sort, setSort] = useState("popular");
   const [showGenres, setShowGenres] = useState(!!params.genre);
-  useEffect(() => { if (params.genre) { setGenres([decodeURIComponent(params.genre)]); setShowGenres(true); } }, [params.genre]);
+  useEffect(() => { if (params.genre) { setGenres([safeDecode(params.genre)]); setShowGenres(true); } }, [params.genre]);
   useEffect(() => { if (params.type) setType(params.type); }, [params.type]);
   useEffect(() => { const t = setTimeout(() => setDq(q.trim()), 300); return () => clearTimeout(t); }, [q]);
 

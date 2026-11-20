@@ -1,3 +1,4 @@
+import NotFound from "@/pages/not-found";
 import { useState, type ReactNode } from "react";
 import { Link, useParams } from "wouter";
 import { motion } from "framer-motion";
@@ -153,7 +154,8 @@ function Copyright() {
 
 export default function Legal() {
   const { section = "" } = useParams<{ section?: string }>();
-  const body = { "": <Overview />, licenses: <Licenses />, terms: <Terms />, privacy: <Privacy />, copyright: <Copyright /> }[section] ?? <Overview />;
+  const body = ({ "": <Overview />, licenses: <Licenses />, terms: <Terms />, privacy: <Privacy />, copyright: <Copyright /> } as Record<string, JSX.Element>)[section];
+  if (!body) return <NotFound what="page" />;
   return (
     <div className="mx-auto max-w-3xl px-4 pb-12 pt-4 sm:px-6">
       <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary"><ShieldCheck className="h-3.5 w-3.5" />Legal</p>
