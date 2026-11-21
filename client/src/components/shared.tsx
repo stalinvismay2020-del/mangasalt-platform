@@ -1,6 +1,6 @@
 import { flushSync } from "react-dom";
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform, useReducedMotion } from "framer-motion";
 import { Search, User as UserIcon, Eye, EyeOff, Loader2, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool, MessagesSquare,
   History, Settings, Shield, LogOut, RotateCw, WifiOff, ChevronLeft, ChevronRight, MailCheck, ImageOff } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -108,10 +108,10 @@ export function Rail({ title, kicker, icon: Icon, items, loading, error, onRetry
   return (
     <section className="mt-9">
       <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          {kicker && <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
+        <motion.div initial={{ opacity: 0, x: -14 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-40px" }} transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}>
+          {kicker && <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="float-soft h-3.5 w-3.5" />}{kicker}</p>}
           <h2 className="font-display mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
-        </div>
+        </motion.div>
         <div className="flex items-center gap-1">
           {action}
           <button onClick={() => scroll(-1)} aria-label={`Scroll ${title} left`} className="hidden h-8 w-8 place-items-center rounded-full border border-border hover:bg-accent md:grid"><ChevronLeft className="h-4 w-4" /></button>
@@ -130,16 +130,18 @@ export function Rail({ title, kicker, icon: Icon, items, loading, error, onRetry
 }
 
 // ---------- States ----------
+const headRise = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } } };
 export function PageHead({ icon: Icon, kicker, title, sub, action }: { icon?: any; kicker?: string; title: string; sub?: ReactNode; action?: ReactNode }) {
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+    <motion.div className="mb-5 flex flex-wrap items-end justify-between gap-3" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.07 } } }}>
       <div className="min-w-0">
-        {kicker && <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-        {sub && <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">{sub}</p>}
+        {kicker && <motion.p variants={headRise} className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">{Icon && <span className="grid h-6 w-6 place-items-center rounded-full bg-primary/15 shadow-[0_0_16px_-2px_hsl(var(--primary)/.55)]"><Icon className="float-soft h-3.5 w-3.5" /></span>}{kicker}</motion.p>}
+        <motion.h1 variants={headRise} className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{title}</motion.h1>
+        <motion.span variants={{ hidden: { scaleX: 0 }, show: { scaleX: 1, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } } }} className="mt-2 block h-0.5 w-14 origin-left rounded-full bg-gradient-to-r from-primary to-transparent" />
+        {sub && <motion.p variants={headRise} className="mt-2 max-w-xl text-sm text-muted-foreground">{sub}</motion.p>}
       </div>
-      {action}
-    </div>
+      {action && <motion.div variants={headRise}>{action}</motion.div>}
+    </motion.div>
   );
 }
 
@@ -276,6 +278,8 @@ export const TABS = [
   { href: "/library", label: "Library", icon: LibraryIcon },
   { href: "/discussion", label: "Discuss", icon: MessagesSquare },
 ];
+// Mobile tab bar: the last tab is Profile; Discussion stays reachable from Home and the account menu.
+export const BOTTOM_TABS = [...TABS.slice(0, 4), { href: "/profile", label: "Profile", icon: UserIcon }];
 
 const isActive = (loc: string, href: string) => (href === "/" ? loc === "/" : loc === href || loc.startsWith(href + "/"));
 
@@ -313,6 +317,7 @@ export function TopBar() {
                 <DropdownMenuLabel className="truncate">{user.name}<span className="block truncate text-xs font-normal text-muted-foreground">{user.email}</span></DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => navigate("/profile")} data-testid="menu-profile"><UserIcon className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate("/discussion")} data-testid="menu-discussion"><MessagesSquare className="mr-2 h-4 w-4" />Discussion</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate("/history")} data-testid="menu-history"><History className="mr-2 h-4 w-4" />Reading history</DropdownMenuItem>
                 <DropdownMenuItem onSelect={() => navigate("/settings")} data-testid="menu-settings"><Settings className="mr-2 h-4 w-4" />Settings</DropdownMenuItem>
                 {(user.role === "creator" || user.role === "admin") && <DropdownMenuItem onSelect={() => navigate("/studio")} data-testid="menu-studio"><PenTool className="mr-2 h-4 w-4" />Creator studio</DropdownMenuItem>}
@@ -332,23 +337,29 @@ export function TopBar() {
 
 export function BottomNav() {
   const [loc] = useLocation();
-  const tabs = TABS; // profile lives in the top-bar account menu on every screen size
+  const { user } = useApp();
+  const reduce = useReducedMotion();
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
-      <div className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
-        {tabs.map((t) => {
-          const active = isActive(loc, t.href);
+      <motion.div initial={reduce ? false : { y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 26, delay: 0.15 }}
+        className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
+        {BOTTOM_TABS.map((t) => {
+          const active = isActive(loc, t.href) || (t.href === "/profile" && loc.startsWith("/u/"));
           const Icon = t.icon;
+          const isProfile = t.href === "/profile";
           return (
             <Link key={t.href} href={t.href} data-testid={`tab-${t.label.toLowerCase()}`} aria-current={active ? "page" : undefined}
               className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition ${active ? "text-primary" : "text-muted-foreground"}`}>
-              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-              <Icon className="relative h-5 w-5" />
+              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15 shadow-[0_0_18px_-4px_hsl(var(--primary)/.6)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <motion.span key={active ? "on" : "off"} className="relative grid h-5 place-items-center"
+                initial={active && !reduce ? { y: 0, scale: 1 } : false} animate={active && !reduce ? { y: [0, -5, 0], scale: [1, 1.18, 1] } : undefined} transition={{ duration: 0.45, ease: "easeOut" }}>
+                {isProfile && user ? <span className={`rounded-full ${active ? "ring-2 ring-primary ring-offset-1 ring-offset-background" : ""}`}><Avatar name={user.name} hue={user.hue} size={20} /></span> : <Icon className="h-5 w-5" />}
+              </motion.span>
               <span className="relative">{t.label}</span>
             </Link>
           );
         })}
-      </div>
+      </motion.div>
     </nav>
   );
 }

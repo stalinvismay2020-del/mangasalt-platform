@@ -25,6 +25,7 @@ import { configError } from "@/lib/supabase";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
+import { AmbientBackdrop } from "@/components/motion";
 import NotFound from "@/pages/not-found";
 import { ErrorBoundary } from "@/components/error-boundary";
 import Legal from "@/pages/legal";
@@ -49,10 +50,11 @@ function Shell() {
     </>
   );
   return (
-    <div className="min-h-screen pb-24 md:pb-0">
+    <div className="relative isolate min-h-screen pb-24 md:pb-0">
+      <AmbientBackdrop />
       <ScrollTop />
       <TopBar />
-      <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
+      <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 14, filter: "blur(6px)" }} animate={{ opacity: 1, y: 0, filter: "blur(0px)" }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}>
         <ErrorBoundary resetKey={loc}><AppRouter /></ErrorBoundary>
       </motion.main>
       <footer className="mt-10 border-t border-border">

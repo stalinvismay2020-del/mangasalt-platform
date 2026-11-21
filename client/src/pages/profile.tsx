@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
+import { Float } from "@/components/motion";
 import { UserRound, MessageSquare, Heart, Settings, Shield, PenTool, Bookmark, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useApp, timeAgo, compact } from "@/lib/app-context";
@@ -28,10 +30,13 @@ export default function ProfilePage({ params }: { params?: { id?: string } }) {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-card/60 p-5 sm:p-7">
+      <motion.div initial={{ opacity: 0, y: 20, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }} className="relative isolate overflow-hidden rounded-3xl border border-border bg-card/60 p-5 backdrop-blur sm:p-7">
         <div className="absolute inset-0 -z-10 opacity-40" style={{ background: `radial-gradient(70% 90% at 0% 0%, hsl(${hue} 80% 50% / .35), transparent 70%)` }} />
         <div className="flex flex-wrap items-center gap-4">
-          <Avatar name={name} hue={hue} size={72} />
+          <Float amp={5} dur={4} className="relative shrink-0">
+            <span aria-hidden className="spin-slow absolute -inset-1 rounded-full opacity-80 blur-[2px]" style={{ background: `conic-gradient(from 0deg, hsl(${hue} 85% 55%), transparent 40%, hsl(var(--primary)), transparent 80%, hsl(${hue} 85% 55%))` }} />
+            <span className="relative block rounded-full ring-4 ring-background"><Avatar name={name} hue={hue} size={72} /></span>
+          </Float>
           <div className="min-w-0 flex-1">
             <h1 className="font-display truncate text-2xl font-bold sm:text-3xl" data-testid="text-profile-name">{name}</h1>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -41,7 +46,7 @@ export default function ProfilePage({ params }: { params?: { id?: string } }) {
             </p>
             {own && user!.email && <p className="text-xs text-muted-foreground">{user!.email}</p>}
           </div>
-          {own && <Link href="/settings"><Button variant="outline" className="gap-2 rounded-full" data-testid="button-edit-profile"><Settings className="h-4 w-4" />Edit profile</Button></Link>}
+          {own && <Link href="/settings" className="w-full sm:w-auto"><Button variant="outline" className="w-full gap-2 rounded-full bg-background/40 backdrop-blur sm:w-auto" data-testid="button-edit-profile"><Settings className="h-4 w-4" />Edit profile</Button></Link>}
         </div>
         {bio ? <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/85" data-testid="text-profile-bio">{bio}</p> : own ? <p className="mt-4 text-sm text-muted-foreground">Add a short bio in settings.</p> : null}
         <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -56,7 +61,7 @@ export default function ProfilePage({ params }: { params?: { id?: string } }) {
             {user!.role === "admin" && <Link href="/admin"><Button size="sm" variant="secondary" className="gap-1.5 rounded-full" data-testid="link-admin"><Shield className="h-3.5 w-3.5" />Admin</Button></Link>}
           </div>
         )}
-      </div>
+      </motion.div>
 
       <section className="mt-8" aria-labelledby="recent">
         <h2 id="recent" className="font-display mb-3 text-lg font-semibold">Recent comments</h2>
@@ -80,9 +85,9 @@ export default function ProfilePage({ params }: { params?: { id?: string } }) {
 
 function Stat({ icon: Icon, label, value, suffix = "" }: { icon: any; label: string; value: number | undefined; suffix?: string }) {
   return (
-    <div className="rounded-2xl bg-background/60 px-3 py-2.5">
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.2 }} whileHover={{ y: -3 }} className="rounded-2xl border border-transparent bg-background/60 px-3 py-2.5 transition-colors hover:border-primary/40">
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{label}</p>
       <p className="font-display mt-0.5 text-xl font-semibold tabular-nums">{value === undefined ? "–" : `${compact(value)}${suffix}`}</p>
-    </div>
+    </motion.div>
   );
 }
