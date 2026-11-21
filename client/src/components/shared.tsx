@@ -62,19 +62,21 @@ export function Poster({ m, index = 0, size = "md", rank }: { m: PosterItem; ind
   const mx = useMotionValue(0.5), my = useMotionValue(0.5);
   const rx = useSpring(useTransform(my, [0, 1], [7, -7]), { stiffness: 250, damping: 20 });
   const ry = useSpring(useTransform(mx, [0, 1], [-9, 9]), { stiffness: 250, damping: 20 });
+  const glare = useTransform([mx, my] as any, ([x, y]: number[]) => `radial-gradient(circle at ${x * 100}% ${y * 100}%, rgba(255,255,255,.28), transparent 55%)`);
   const onMove = (e: React.PointerEvent) => {
     if (e.pointerType !== "mouse" || !ref.current) return;
     const r = ref.current.getBoundingClientRect();
     mx.set((e.clientX - r.left) / r.width); my.set((e.clientY - r.top) / r.height);
   };
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-30px" }}
-      transition={{ duration: 0.5, delay: Math.min(index, 10) * 0.04, ease: [0.16, 1, 0.3, 1] }} style={{ perspective: 800 }}>
+    <motion.div initial={{ opacity: 0, y: 24, scale: 0.96 }} whileInView={{ opacity: 1, y: 0, scale: 1 }} viewport={{ once: true, margin: "-30px" }}
+      transition={{ duration: 0.55, delay: Math.min(index, 10) * 0.045, ease: [0.16, 1, 0.3, 1] }} style={{ perspective: 800 }}>
       <Link href={m.href} ref={ref} onPointerMove={onMove} onPointerLeave={() => { mx.set(0.5); my.set(0.5); }} className="group block" data-testid={`card-${m.id}`}>
         <motion.div style={{ rotateX: rx, rotateY: ry }} whileTap={{ scale: 0.97 }}
           className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted shadow-lg ring-1 ring-white/5 transition-shadow duration-300 group-hover:shadow-2xl">
           <Cover src={m.cover} alt={`${m.title} cover`} className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/0" />
+          <motion.div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: glare }} />
           <div className="absolute left-2 top-2 flex flex-wrap gap-1"><TypeBadge type={m.type} />{m.badge}</div>
           {rank && <span className="font-display absolute -left-1 bottom-0 text-6xl font-bold leading-none text-white/95 [text-shadow:0_4px_20px_rgba(0,0,0,.7)]">{rank}</span>}
           {m.score ? <span className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{(m.score / 10).toFixed(1)}</span> : null}
@@ -106,8 +108,8 @@ export function Rail({ title, kicker, icon: Icon, items, loading, error, onRetry
   const ref = useRef<HTMLDivElement>(null);
   const scroll = (d: number) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.8, behavior: "smooth" });
   return (
-    <section className="mt-9">
-      <div className="mb-3 flex items-end justify-between gap-3">
+    <section>
+      <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           {kicker && <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
           <h2 className="font-display mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
@@ -119,9 +121,9 @@ export function Rail({ title, kicker, icon: Icon, items, loading, error, onRetry
         </div>
       </div>
       {error ? <InlineError error={error} onRetry={onRetry} /> : (
-        <div ref={ref} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-4 px-4 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6">
-          {loading ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-[30%] shrink-0 snap-start sm:w-40"><PosterSkel /></div>)
-            : items?.length ? items.map((m, i) => <div key={m.href} className="w-[30%] shrink-0 snap-start sm:w-40"><Poster m={m} index={i} size="sm" rank={ranked ? i + 1 : undefined} /></div>)
+        <div ref={ref} className="no-scrollbar -mx-4 flex snap-x scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:-mx-6 sm:scroll-px-6 sm:gap-4 sm:px-6">
+          {loading ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-32 shrink-0 sm:w-40"><PosterSkel /></div>)
+            : items?.length ? items.map((m, i) => <div key={m.href} className={`shrink-0 snap-start ${ranked ? "w-36 pl-4 sm:w-44" : "w-32 sm:w-40"}`}><Poster m={m} index={i} rank={ranked ? i + 1 : undefined} /></div>)
             : <EmptyBox>Nothing here yet.</EmptyBox>}
         </div>
       )}
@@ -272,12 +274,12 @@ export function AuthDialog() {
 export const TABS = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/trending", label: "Trending", icon: Flame },
-  { href: "/search", label: "Search", icon: Search },
   { href: "/library", label: "Library", icon: LibraryIcon },
-  { href: "/discussion", label: "Discuss", icon: MessagesSquare },
+  { href: "/search", label: "Search", icon: Search },
+  { href: "/profile", label: "Profile", icon: UserIcon },
 ];
-// Mobile tab bar: the last tab is Profile; Discussion is in the top nav (desktop) and the account menu.
-export const BOTTOM_TABS = [...TABS.slice(0, 4), { href: "/profile", label: "Profile", icon: UserIcon }];
+// Desktop top nav: the first four tabs plus Discussion (Profile lives in the account button).
+const TOP_TABS = [...TABS.slice(0, 4), { href: "/discussion", label: "Discussion", icon: MessagesSquare }];
 
 const isActive = (loc: string, href: string) => (href === "/" ? loc === "/" : loc === href || loc.startsWith(href + "/"));
 
@@ -287,15 +289,15 @@ export function TopBar() {
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => { const h = () => setScrolled(window.scrollY > 12); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   return (
-    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-border/60 bg-background/70 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
+    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-white/10 bg-background/35 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-5 px-4 sm:h-16 sm:px-6">
         <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">MANGA<span className="text-primary">SALT</span></Link>
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          {TABS.map((t) => (
+          {TOP_TABS.map((t) => (
             <Link key={t.href} href={t.href} data-testid={`link-top-${t.label.toLowerCase()}`}
               className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${isActive(loc, t.href) ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
               {isActive(loc, t.href) && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-accent" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
-              <span className="relative">{t.label === "Discuss" ? "Discussion" : t.label}</span>
+              <span className="relative">{t.label}</span>
             </Link>
           ))}
         </nav>
@@ -335,7 +337,7 @@ export function TopBar() {
 
 export function BottomNav() {
   const [loc] = useLocation();
-  const tabs = BOTTOM_TABS;
+  const tabs = TABS;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
       <div className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
@@ -345,8 +347,8 @@ export function BottomNav() {
           return (
             <Link key={t.href} href={t.href} data-testid={`tab-${t.label.toLowerCase()}`} aria-current={active ? "page" : undefined}
               className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition ${active ? "text-primary" : "text-muted-foreground"}`}>
-              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-              <Icon className="relative h-5 w-5" />
+              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15 shadow-[0_0_24px_hsl(var(--primary)/0.35)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <motion.span className="relative" animate={active ? { y: [0, -4, 0], scale: [1, 1.18, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.45 }}><Icon className={`h-5 w-5 ${active ? "drop-shadow-[0_0_8px_hsl(var(--primary))]" : ""}`} /></motion.span>
               <span className="relative">{t.label}</span>
             </Link>
           );

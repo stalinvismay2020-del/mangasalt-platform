@@ -48,7 +48,7 @@ export default function TitlePage({ params }: { params: { id: string } }) {
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
       </div>
       <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
-        <button onClick={() => (history.length > 1 ? history.back() : nav("/"))} className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground" data-testid="button-back"><ArrowLeft className="h-4 w-4" />Back</button>
+        <button onClick={() => (history.length > 1 ? history.back() : nav("/"))} className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-background/50 px-3 py-1.5 text-sm text-muted-foreground backdrop-blur hover:text-foreground" data-testid="button-back"><ArrowLeft className="h-4 w-4" />Back</button>
         <div className="flex flex-col items-center gap-6 md:flex-row md:items-start md:gap-8">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-44 shrink-0 sm:w-52">
             <Cover src={d.cover} alt={`${d.title} cover`} className="aspect-[2/3] w-full rounded-2xl object-cover shadow-2xl ring-1 ring-white/10" />
