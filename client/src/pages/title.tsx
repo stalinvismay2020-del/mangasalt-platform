@@ -20,7 +20,7 @@ export default function TitlePage({ params }: { params: { id: string } }) {
   const id = Number(params.id);
   const [, nav] = useLocation();
   const [more, setMore] = useState(false);
-  const valid = Number.isInteger(id) && id > 0;
+  const valid = Number.isInteger(id) && id > 0 && id <= 2_147_483_647;
   const t = useQuery({ queryKey: catalogKeys.title(id), queryFn: ({ signal }) => catalog<TitleDetails>(`/title/${id}`, {}, signal), enabled: valid, staleTime: 30 * 60_000, retry: (n, e) => !(e instanceof CatalogError && e.status === 404) && n < 2 });
   const ch = useQuery({ queryKey: catalogKeys.chapters(id), queryFn: ({ signal }) => catalog<ChapterIndex>(`/title/${id}/chapters`, { order: "asc" }, signal), enabled: valid && !!t.data, staleTime: 15 * 60_000, retry: (n, e) => !(e instanceof CatalogError && e.status === 404) && n < 1 });
   const hosted = useQuery({ queryKey: ["hosted-for", id], queryFn: () => hostedForAnilist([id]), enabled: valid });
@@ -97,7 +97,7 @@ export default function TitlePage({ params }: { params: { id: string } }) {
             : ch.error ? <InlineError error={ch.error} onRetry={() => ch.refetch()} title="Couldn't load the chapter list" />
             : <>
                 {ch.data?.latestChapter ? <p className="mb-2 px-1 text-xs text-muted-foreground">Latest known chapter: {formatNumber(ch.data.latestChapter)}{ch.data.total < ch.data.latestChapter ? ` · ${ch.data.total} indexed` : ""}</p> : null}
-                <ChapterList chapters={chapters} emptyText="The chapter index for this title is empty." />
+                <ChapterList chapters={chapters} latestKnown={ch.data?.latestChapter ?? null} emptyText="The chapter index for this title is empty." />
               </>}
         </section>
 

@@ -119,7 +119,7 @@ export default function App() {
       <AppProvider>
         <TooltipProvider>
           <Toaster />
-          <Router hook={useHashPath as any}>
+          <Router hook={useHashPath as any} hrefs={(href: string) => `#${href}`}>
             <Shell />
           </Router>
         </TooltipProvider>

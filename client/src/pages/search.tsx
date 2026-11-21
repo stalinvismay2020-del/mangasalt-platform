@@ -1,3 +1,4 @@
+import { safeDecode } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -17,7 +18,7 @@ export default function Search({ params }: { params?: { genre?: string; type?: s
   const [, nav] = useLocation();
   const [text, setText] = useState(hq.get("q") ?? "");
   const q = (hq.get("q") ?? "").trim();
-  const genre = params?.genre ? decodeURIComponent(params.genre) : hq.get("genre") ?? "";
+  const genre = params?.genre ? safeDecode(params.genre) : hq.get("genre") ?? "";
   const format = (params?.type ?? hq.get("format") ?? "") as (typeof FORMATS)[number][0];
   const status = (hq.get("status") ?? "") as (typeof STATUSES)[number][0];
   const hostedOnly = hq.get("hosted") === "1";

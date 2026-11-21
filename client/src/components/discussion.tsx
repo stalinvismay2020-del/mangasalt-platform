@@ -19,7 +19,12 @@ export function Discussion({ target, title = "Discussion", chapterFilter = null,
   const [limit, setLimit] = useState(20);
   const key = ["thread", target.seriesId ?? target.mediaId, chapterFilter, sort, limit];
   const q = useQuery({ queryKey: key, queryFn: () => getThread(target, sort, limit, chapterFilter) });
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["thread", target.seriesId ?? target.mediaId] });
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["thread", target.seriesId ?? target.mediaId] });
+    // keep the series header and discussion feed comment counts in sync
+    queryClient.invalidateQueries({ queryKey: ["hosted"] });
+    queryClient.invalidateQueries({ queryKey: ["discussion-feed"] });
+  };
 
   return (
     <section aria-labelledby="discussion-title" data-testid="section-discussion">

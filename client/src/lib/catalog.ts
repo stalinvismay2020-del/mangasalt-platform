@@ -51,7 +51,9 @@ export function describeCatalogError(e: unknown): { title: string; detail: strin
     if (e.status === 404) return { title: "Not found", detail: e.message };
     if (e.status === 429) return { title: "Catalogue is busy", detail: `Too many requests right now.${e.retryAfter ? ` Try again in ${e.retryAfter}s.` : " Try again shortly."}` };
     if (e.status === 504) return { title: "Catalogue timed out", detail: "The Dawghwa catalogue service didn't answer in time. Retry in a moment." };
-    if (e.status === 0) return { title: "You're offline", detail: e.message };
+    if (e.status === 0) return typeof navigator !== "undefined" && navigator.onLine === false
+      ? { title: "You're offline", detail: e.message }
+      : { title: "Catalogue unreachable", detail: "The MANGASALT catalogue service didn't respond. Your library, history and MANGASALT-hosted series still work. Try again shortly." };
     return { title: "Catalogue unavailable", detail: `${/[.!?]$/.test(e.message.trim()) ? e.message.trim() : `${e.message.trim()}.`} Your library, history and MANGASALT-hosted series still work.` };
   }
   return { title: "Something went wrong", detail: e instanceof Error ? e.message : String(e) };

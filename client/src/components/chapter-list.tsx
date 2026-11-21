@@ -13,7 +13,7 @@ export type ListChapter = {
 
 const PAGE = 100;
 
-export function ChapterList({ chapters, readKeys, resumeKey, emptyText }: { chapters: ListChapter[]; readKeys?: Set<string>; resumeKey?: string | null; emptyText?: string }) {
+export function ChapterList({ chapters, readKeys, resumeKey, emptyText, latestKnown }: { chapters: ListChapter[]; readKeys?: Set<string>; resumeKey?: string | null; emptyText?: string; latestKnown?: number | null }) {
   const [q, setQ] = useState("");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
   const [limit, setLimit] = useState(PAGE);
@@ -58,7 +58,7 @@ export function ChapterList({ chapters, readKeys, resumeKey, emptyText }: { chap
       {dq.trim() && !results.length ? (
         <div className="rounded-2xl border border-dashed border-border px-4 py-6 text-sm text-muted-foreground" data-testid="text-no-chapter-match">
           {parsed.number !== null
-            ? <>There's no chapter {formatNumber(parsed.number)} in this list. {(() => { const lo = sortChapters(chapters, "asc")[0]?.number; const hi = sortChapters(chapters, "desc")[0]?.number; return lo == null ? null : lo === hi ? <>The only chapter listed is {formatNumber(lo)}.</> : <>Chapters here run from {formatNumber(lo)} to {formatNumber(hi)}.</>; })()}</>
+            ? <>There's no chapter {formatNumber(parsed.number)} in this list. {(() => { const lo = sortChapters(chapters, "asc")[0]?.number; const hi = sortChapters(chapters, "desc")[0]?.number; return lo == null ? null : lo === hi ? <>The only chapter listed is {formatNumber(lo)}.</> : <>Chapters here run from {formatNumber(lo)} to {formatNumber(hi)}.</>; })()}{latestKnown && parsed.number !== null && parsed.number > 0 && parsed.number <= latestKnown && chapters.length < latestKnown ? <> The series has reached chapter {formatNumber(latestKnown)}, but only {chapters.length} {chapters.length === 1 ? "chapter is" : "chapters are"} in the authorised index, so chapter {formatNumber(parsed.number)} can't be listed or read here.</> : null}</>
             : <>No chapter title contains “{dq.trim()}”.</>}
         </div>
       ) : (
