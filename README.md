@@ -1,60 +1,49 @@
 # MANGASALT
 
-A manga, manhwa, manhua and comic reading platform. It is built as a website first and works well on phones.
+A manga, manhwa, manhua and webcomic platform with its own catalogue, reader, accounts, library, reading history and community. It is a static React app backed by Supabase. It does not send readers to external reading sites.
 
-## Stack
-- React, Vite, Tailwind, shadcn/ui and Framer Motion on the client
-- Express with SQLite (better-sqlite3) on the server
-- Hash routing: `/`, `/trending`, `/search`, `/search/genre/:genre`, `/search/type/:type`, `/library`, `/profile`, `/title/:anilistId`, `/mp/:anilistId/:chapter`, `/series/:slug`, `/read/:chapterId/:page?`
-- Catalogue: [AniList GraphQL API](https://graphql.anilist.co) (titles, covers, genres, staff, recommendations)
-- Official chapter index: [MangaDex API](https://api.mangadex.org) external links to official publishers only
+## Architecture
+
+| Layer | What it does |
+|---|---|
+| `client/` (React 18, Vite, Tailwind, shadcn/ui, Framer Motion, TanStack Query, wouter hash routing) | All screens. It talks to Supabase with the **publishable** key only. |
+| Supabase Postgres + RLS | Profiles, roles, hosted series/chapters, bookmarks, reading progress, chapter reads, comments, comment likes, likes, reports, creator requests and takedown requests. Every table has row-level security, so users can only change their own rows. |
+| Supabase Storage, `pages` bucket | Covers and chapter pages for hosted series. Anyone can read it. Only creators and admins can upload, and only into their own `<uid>/…` folder. |
+| Edge Function `catalog` (`supabase/functions/catalog`) | The server-side adapter for the [Dawghwa API](https://dawghwaapi.vercel.app). It validates input and normalises responses, and it caches results (titles 10 min, chapters 5 min). It also handles 12 s timeouts, retries with back-off, the 120 req/60 s rate limit (`Retry-After`) and JSON structured logs. |
+
+### Catalogue and page authorisation
+Dawghwa provides title metadata, covers and chapter indexes. Its `POST /api/pages` endpoint resolves pages from third-party scanlation sources that MANGASALT has no licence for. The `/pages/:source/:chapterId` route therefore returns **403** unless the source is listed in the `DAWGHWA_AUTHORIZED_SOURCES` secret. That list is empty by default, so catalogue chapters show as "Not licensed on MANGASALT" and can't be opened. Only hosted series (creator uploads and openly licensed works such as Pepper&Carrot) have readable pages.
+
+Function secrets (all optional): `DAWGHWA_API_BASE` (default `https://dawghwaapi.vercel.app`), `DAWGHWA_INDEX_SOURCE` (default `mangadex`), `DAWGHWA_AUTHORIZED_SOURCES` (comma-separated, default empty).
+
+## Routes
+`/`, `/trending`, `/search`, `/search/genre/:genre`, `/search/type/:type`, `/title/:id` (catalogue title), `/series/:slug` (hosted series), `/read/:slug/:number?p=` (reader), `/library`, `/history`, `/profile`, `/u/:id`, `/discussion`, `/settings`, `/admin`, `/studio`, `/studio/new`, `/studio/series/:id`, `/legal/:section`.
 
 ## Run
 ```bash
+cp .env.example .env   # VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY
 npm install
-npm run dev        # http://localhost:5000
-npm run build && NODE_ENV=production node dist/index.cjs
+npm run dev            # Vite dev server
+npm run check          # TypeScript
+npm test               # chapter search unit tests
+npm run build          # static site in dist/public
 ```
-The database (`data.db`) is created and seeded automatically on first start.
+Deploy the `dist/public` folder to any static host. Deploy the edge function with `supabase functions deploy catalog --no-verify-jwt`.
 
-## Content and rights
-MANGASALT only hosts content it has the right to host.
-- **Pepper&Carrot** by David Revoy: all 39 official English episodes are self-hosted in `client/public/comics/pepper`, under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Source: https://www.peppercarrot.com
-- **Worldwide catalogue** (manga, manhwa, manhua) comes from AniList. Chapters are listed only when an official English publisher has released them.
-- **In-app reading** uses the publisher's own embeddable reader. Today that is MANGA Plus by Shueisha, which offers its free chapters (usually the first few and the latest). Publishers that block embedding (for example VIZ and WEBTOON) are shown as "not in app" with no outbound links.
-- AniList's API is free for non-commercial use; commercial use needs AniList's permission.
+## Reader
+- Vertical scroll or page-by-page, with left-to-right or right-to-left direction.
+- Fit to width, fit to height or original size; zoom from 50% to 300%; fullscreen.
+- Tap zones, swipe gestures and the keyboard (arrow keys, `f`, `+`/`-`).
+- A chapter selector, previous/next chapter controls and a page slider with a progress percentage.
+- Progress auto-saves while you read and when you leave. Opening the chapter again resumes where you left off.
+- Every page loads lazily and has its own loading spinner and Retry button.
+- Chapters with no uploaded pages show an availability notice; the reader never fills them with placeholder pages.
 
-Copyrighted manga is never mirrored, re-hosted or streamed from fan scanlations.
+## Chapter search
+`client/src/lib/chapter-search.ts` matches by chapter number and by title, both exact and partial. It accepts "10", " 10 ", "ch 10", "episode 3", "10.5" and large numbers such as "1000", and treats a numeric query as a chapter number. Exact matches come first. Tests live in `chapter-search.test.ts`.
 
-## Creator Studio
+## Database
+Migrations are in `supabase/migrations`. Key RPCs: `toggle_comment_like`, `toggle_title_like`, `comment_thread`, `discussion_feed`, `profile_summary`, `request_creator`, `admin_stats`, `admin_reports`, `admin_list_users`, `admin_set_role`.
 
-Creators publish their own manga, manhwa, manhua or comics at `/#/studio`.
-
-- Create a series: cover, title, format, status, up to 6 genres, synopsis, and a rights confirmation (required).
-- Add chapters: drag-and-drop pages, reorder, remove. Pages are resized to WebP (max 1200px wide) in the browser; long webtoon strips are split automatically.
-- Edit or delete series and chapters at any time; replaced files are removed from disk.
-- Uploads are stored in `uploads/u<userId>/` (gitignored) and only accept PNG, JPEG or WebP up to 6 MB per page.
-- Published series appear on Home ("Creator originals"), in Library, and in Search, with likes, comments, follows and the in-app reader.
-
-Only creator-owned or properly licensed work may be uploaded. Scanlations and images taken from other sites are not allowed.
-
-## Official English only
-
-Every title in the catalogue must have a verified official English edition:
-
-1. AniList's English-language publisher / reading-platform links (WEBTOON, Tapas, MANGA Plus, VIZ, K MANGA, Yen Press...).
-2. If AniList lists none, MangaDex's "official English" link is checked before the title is hidden.
-
-Results are cached in the `official_en` table (negatives are re-checked weekly). Titles without an official English edition are removed from Home, Search, Trending and recommendations, and their pages show "Not available in official English".
-
-## In-app chapters
-
-- **MANGA Plus** (free official chapters, from the MangaDex publisher index) and **Tapas** (every official episode) open in their publisher's own reader inside MANGASALT. Tapas episodes are tagged Free, Wait-free or Coins.
-- WEBTOON, VIZ, K MANGA, Tappytoon, Comikey and INKR block their reader inside other sites, so those titles show which platform publishes them instead.
-- No chapter images are copied from other websites.
-
-## Extras
-
-- Animated day/night switch with a circular screen reveal.
-- Transparent glass navigation bar and reader controls (keyboard: arrows for prev/next, H hide controls).
-- Reading stats with a daily streak on Profile, "Surprise me" random pick, share button on title pages.
+## Removed
+The Express/SQLite server, the MANGA Plus, WEBTOON and Tapas integrations (reader embeds, redirect buttons, chapter IDs, badges) and the external-link chapter index were removed. Reading history saved by those integrations is kept and shown under "Earlier reading" on the History page.

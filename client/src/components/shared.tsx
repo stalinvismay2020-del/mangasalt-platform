@@ -1,238 +1,270 @@
-import { API_BASE } from "@/lib/queryClient";
 import { flushSync } from "react-dom";
-import { useState, useEffect, type ReactNode } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Heart, Search, Moon, Sun, LogOut, User as UserIcon, BookOpen, Eye, EyeOff, UserPlus, Check, Loader2, ShieldCheck, Bookmark, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool } from "lucide-react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from "framer-motion";
+import { Search, User as UserIcon, Eye, EyeOff, Loader2, Home as HomeIcon, Flame, Library as LibraryIcon, Star, PenTool, MessagesSquare,
+  History, Settings, Shield, LogOut, RotateCw, WifiOff, ChevronLeft, ChevronRight, MailCheck, ImageOff } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient, invalidatePrefixes } from "@/lib/queryClient";
-import { useApp, TYPE_LABEL, compact, rightsLabel } from "@/lib/app-context";
-import type { PublicUser, SeriesCard } from "@shared/schema";
-import { normalizeUsername, USERNAME_RE } from "@shared/username";
+import { useApp, TYPE_LABEL } from "@/lib/app-context";
+import { supabase, errMsg, pageUrl } from "@/lib/supabase";
+import { describeCatalogError, type CatalogCard } from "@/lib/catalog";
+import type { HostedSeries } from "@/lib/data";
 
-const API_ASSET = (p: string) => (p.startsWith("uploads/") ? `${API_BASE}/${p}` : p.startsWith("/") ? `.${p}` : p);
-export const asset = API_ASSET;
+export const STATUS_LABEL: Record<string, string> = { ongoing: "Releasing", completed: "Completed", hiatus: "On hiatus", upcoming: "Upcoming", cancelled: "Cancelled" };
 
 // ---------- Avatar ----------
-export function Avatar({ user, size = 32 }: { user: Pick<PublicUser, "displayName" | "avatarHue">; size?: number }) {
-  const initials = user.displayName.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+export function Avatar({ name, hue = 24, size = 32 }: { name: string; hue?: number; size?: number }) {
+  const initials = (name || "R").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <span
-      className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ring-1 ring-white/10"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: `linear-gradient(135deg, hsl(${user.avatarHue} 65% 45%), hsl(${(user.avatarHue + 40) % 360} 70% 28%))` }}
-      aria-hidden
-    >
+    <span className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-white ring-1 ring-white/10"
+      style={{ width: size, height: size, fontSize: size * 0.38, background: `linear-gradient(135deg, hsl(${hue} 65% 45%), hsl(${(hue + 40) % 360} 70% 28%))` }} aria-hidden>
       {initials}
     </span>
   );
 }
 
 // ---------- Type badge ----------
-export function TypeBadge({ type, className = "" }: { type: string; className?: string }) {
-  const tone = type === "manga" ? "bg-primary text-primary-foreground" : type === "manhwa" ? "bg-[hsl(258_70%_58%)] text-white" : type === "comic" ? "bg-[hsl(200_80%_44%)] text-white" : "bg-[hsl(158_60%_36%)] text-white";
-  return <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${tone} ${className}`}>{TYPE_LABEL[type]}</span>;
+export function TypeBadge({ type, className = "" }: { type: string | null | undefined; className?: string }) {
+  if (!type) return null;
+  const tone = type === "manga" ? "bg-primary text-primary-foreground" : type === "manhwa" ? "bg-[hsl(258_70%_58%)] text-white" : type === "webcomic" || type === "comic" ? "bg-[hsl(200_80%_40%)] text-white" : "bg-[hsl(158_60%_32%)] text-white";
+  return <span className={`inline-flex items-center rounded-sm px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wider ${tone} ${className}`}>{TYPE_LABEL[type] ?? type}</span>;
 }
 
-// ---------- Like button (series) ----------
-export function useSeriesLike() {
-  const { user, openAuth } = useApp();
-  const { toast } = useToast();
-  const m = useMutation({
-    mutationFn: async (id: number) => (await apiRequest("POST", `/api/series/${id}/like`)).json() as Promise<{ liked: boolean; likes: number }>,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/home"] });
-      invalidatePrefixes("/api/series");
-      queryClient.invalidateQueries({ queryKey: ["/api/me/library"] });
-    },
-    onError: (e: Error) => toast({ title: "Couldn't update like", description: e.message }),
-  });
-  return { toggle: (id: number) => (user ? m.mutate(id) : openAuth("login")), pending: m.isPending, variables: m.variables };
+// ---------- Cover image with graceful failure ----------
+export function Cover({ src, alt, className = "" }: { src: string | null | undefined; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [src]);
+  if (!src || failed) return (
+    <div className={`grid place-items-center bg-gradient-to-br from-muted to-card text-muted-foreground ${className}`} role="img" aria-label={alt}>
+      <ImageOff className="h-6 w-6 opacity-50" />
+    </div>
+  );
+  return <img src={src} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} className={className} />;
 }
 
-export function LikeButton({ s, variant = "pill" }: { s: SeriesCard; variant?: "pill" | "icon" }) {
-  const { toggle } = useSeriesLike();
-  const [optimistic, setOptimistic] = useState<{ liked: boolean; likes: number } | null>(null);
-  useEffect(() => setOptimistic(null), [s.likedByMe, s.likes]);
-  const liked = optimistic?.liked ?? s.likedByMe;
-  const likes = optimistic?.likes ?? s.likes;
-  const { user } = useApp();
-  const onClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (user) setOptimistic({ liked: !liked, likes: likes + (liked ? -1 : 1) });
-    toggle(s.id);
+// ---------- Poster card (catalogue or hosted) ----------
+export type PosterItem = { href: string; id: string; title: string; cover: string | null; type: string | null; sub: string; score?: number | null; badge?: ReactNode };
+export const fromCatalog = (m: CatalogCard): PosterItem => ({
+  href: `/title/${m.id}`, id: String(m.id), title: m.title, cover: m.cover, type: m.format, score: m.score,
+  sub: m.genres.slice(0, 2).join(" · ") || (m.status ? STATUS_LABEL[m.status] : ""),
+});
+export const fromHosted = (s: HostedSeries): PosterItem => ({
+  href: `/series/${s.slug}`, id: s.id, title: s.title, cover: pageUrl(s.cover_path), type: s.kind,
+  sub: `${s.chapters} chapter${s.chapters === 1 ? "" : "s"} · Read on MANGASALT`,
+  badge: <span className="rounded-full bg-emerald-500/90 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">Readable</span>,
+});
+
+export function Poster({ m, index = 0, size = "md", rank }: { m: PosterItem; index?: number; size?: "sm" | "md"; rank?: number }) {
+  const ref = useRef<HTMLAnchorElement>(null);
+  const mx = useMotionValue(0.5), my = useMotionValue(0.5);
+  const rx = useSpring(useTransform(my, [0, 1], [7, -7]), { stiffness: 250, damping: 20 });
+  const ry = useSpring(useTransform(mx, [0, 1], [-9, 9]), { stiffness: 250, damping: 20 });
+  const onMove = (e: React.PointerEvent) => {
+    if (e.pointerType !== "mouse" || !ref.current) return;
+    const r = ref.current.getBoundingClientRect();
+    mx.set((e.clientX - r.left) / r.width); my.set((e.clientY - r.top) / r.height);
   };
-  if (variant === "icon")
-    return (
-      <button onClick={onClick} aria-label={liked ? "Unlike" : "Like"} data-testid={`button-like-${s.id}`}
-        className="grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur transition hover:bg-black/75">
-        <motion.span key={String(liked)} initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 15 }}>
-          <Heart className={`h-4 w-4 ${liked ? "fill-primary text-primary" : ""}`} />
-        </motion.span>
-      </button>
-    );
   return (
-    <Button variant={liked ? "default" : "outline"} onClick={onClick} data-testid={`button-like-${s.id}`} className="gap-2 rounded-full">
-      <motion.span key={String(liked)} initial={{ scale: 0.5, rotate: -20 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: "spring", stiffness: 500, damping: 14 }}>
-        <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />
-      </motion.span>
-      <span className="tabular-nums">{compact(likes)}</span>
-    </Button>
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: "-30px" }}
+      transition={{ duration: 0.5, delay: Math.min(index, 10) * 0.04, ease: [0.16, 1, 0.3, 1] }} style={{ perspective: 800 }}>
+      <Link href={m.href} ref={ref} onPointerMove={onMove} onPointerLeave={() => { mx.set(0.5); my.set(0.5); }} className="group block" data-testid={`card-${m.id}`}>
+        <motion.div style={{ rotateX: rx, rotateY: ry }} whileTap={{ scale: 0.97 }}
+          className="relative aspect-[2/3] overflow-hidden rounded-xl bg-muted shadow-lg ring-1 ring-white/5 transition-shadow duration-300 group-hover:shadow-2xl">
+          <Cover src={m.cover} alt={`${m.title} cover`} className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent" />
+          <div className="absolute left-2 top-2 flex flex-wrap gap-1"><TypeBadge type={m.type} />{m.badge}</div>
+          {rank && <span className="font-display absolute -left-1 bottom-0 text-6xl font-bold leading-none text-white/95 [text-shadow:0_4px_20px_rgba(0,0,0,.7)]">{rank}</span>}
+          {m.score ? <span className="absolute bottom-2 right-2 flex items-center gap-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur"><Star className="h-3 w-3 fill-amber-400 text-amber-400" />{(m.score / 10).toFixed(1)}</span> : null}
+          <span className="absolute inset-x-0 bottom-0 h-0.5 origin-left scale-x-0 bg-primary transition-transform duration-500 group-hover:scale-x-100" />
+        </motion.div>
+        <h3 className={`mt-2 line-clamp-2 font-semibold leading-tight transition-colors group-hover:text-primary ${size === "sm" ? "text-[13px]" : "text-sm"}`}>{m.title}</h3>
+        {m.sub && <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{m.sub}</p>}
+      </Link>
+    </motion.div>
   );
 }
 
-// ---------- Series card ----------
-export function SeriesPoster({ s, index = 0, onOpen, size = "md" }: { s: SeriesCard; index?: number; onOpen: (s: SeriesCard) => void; size?: "md" | "sm" }) {
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 16 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-40px" }}
-      transition={{ duration: 0.5, delay: Math.min(index, 8) * 0.05, ease: [0.16, 1, 0.3, 1] }}
-      className="group relative cursor-pointer"
-      onClick={() => onOpen(s)}
-      data-testid={`card-series-${s.id}`}
-    >
-      <div className="relative aspect-[2/3] overflow-hidden rounded-lg bg-muted ring-1 ring-white/5">
-        <img src={asset(s.cover)} alt={`${s.title} cover`} loading="lazy" width={600} height={900}
-          className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.06]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent opacity-80 transition group-hover:opacity-100" />
-        <div className="absolute left-2 top-2"><TypeBadge type={s.type} /></div>
-        <div className="absolute right-2 top-2 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-100"><LikeButton s={s} variant="icon" /></div>
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 p-2.5 text-xs text-white/85">
-          <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5 fill-primary text-primary" />{compact(s.likes)}</span>
-          <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{compact(s.views)}</span>
-          <span>Ch. {s.latestChapter}</span>
-        </div>
-      </div>
-      <h3 className={`mt-2.5 line-clamp-1 font-semibold leading-tight transition group-hover:text-primary ${size === "sm" ? "text-sm" : "text-[15px]"}`}>{s.title}</h3>
-      <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{s.genres.slice(0, 2).join(" · ")} — {s.creator.displayName}</p>
-    </motion.article>
-  );
+export function PosterSkel() {
+  return <div><div className="shimmer relative aspect-[2/3] overflow-hidden rounded-xl bg-muted" /><div className="mt-2 h-3.5 w-4/5 rounded bg-muted" /><div className="mt-1.5 h-3 w-1/2 rounded bg-muted" /></div>;
 }
 
-export function PosterSkeleton() {
+export function PosterGrid({ items, loading, count = 12 }: { items?: PosterItem[]; loading?: boolean; count?: number }) {
   return (
-    <div>
-      <div className="shimmer relative aspect-[2/3] overflow-hidden rounded-lg bg-muted" />
-      <div className="mt-2.5 h-4 w-3/4 rounded bg-muted" />
-      <div className="mt-1.5 h-3 w-1/2 rounded bg-muted" />
+    <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+      {loading ? Array.from({ length: count }).map((_, i) => <PosterSkel key={i} />) : items?.map((m, i) => <Poster key={m.href} m={m} index={i} size="sm" />)}
     </div>
   );
 }
 
-// ---------- Follow ----------
-export function FollowButton({ type, id, following, size = "sm" }: { type: "series" | "creator"; id: number; following: boolean; size?: "sm" | "default" }) {
-  const { user, openAuth } = useApp();
-  const [state, setState] = useState(following);
-  useEffect(() => setState(following), [following]);
-  const m = useMutation({
-    mutationFn: async () => (await apiRequest("POST", `/api/follow/${type}/${id}`)).json(),
-    onSuccess: (d: any) => { setState(d.following); invalidatePrefixes("/api/home", "/api/series", "/api/me/library"); },
-  });
+/** Horizontal rail with snap scrolling and arrow buttons on desktop. */
+export function Rail({ title, kicker, icon: Icon, items, loading, error, onRetry, ranked, action }: {
+  title: string; kicker?: string; icon?: any; items?: PosterItem[]; loading?: boolean; error?: unknown; onRetry?: () => void; ranked?: boolean; action?: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scroll = (d: number) => ref.current?.scrollBy({ left: d * ref.current.clientWidth * 0.8, behavior: "smooth" });
   return (
-    <Button size={size} variant={state ? "secondary" : "outline"} className="gap-1.5 rounded-full" data-testid={`button-follow-${type}-${id}`}
-      onClick={(e) => { e.stopPropagation(); user ? m.mutate() : openAuth("login"); }}>
-      {m.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : state ? <Check className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
-      {state ? "Following" : "Follow"}
-    </Button>
+    <section className="mt-9">
+      <div className="mb-3 flex items-end justify-between gap-3">
+        <div>
+          {kicker && <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
+          <h2 className="font-display mt-0.5 text-xl font-semibold tracking-tight sm:text-2xl">{title}</h2>
+        </div>
+        <div className="flex items-center gap-1">
+          {action}
+          <button onClick={() => scroll(-1)} aria-label={`Scroll ${title} left`} className="hidden h-8 w-8 place-items-center rounded-full border border-border hover:bg-accent md:grid"><ChevronLeft className="h-4 w-4" /></button>
+          <button onClick={() => scroll(1)} aria-label={`Scroll ${title} right`} className="hidden h-8 w-8 place-items-center rounded-full border border-border hover:bg-accent md:grid"><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+      {error ? <InlineError error={error} onRetry={onRetry} /> : (
+        <div ref={ref} className="no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-px-4 px-4 pb-2 sm:-mx-6 sm:scroll-px-6 sm:px-6">
+          {loading ? Array.from({ length: 7 }).map((_, i) => <div key={i} className="w-[30%] shrink-0 snap-start sm:w-40"><PosterSkel /></div>)
+            : items?.length ? items.map((m, i) => <div key={m.href} className="w-[30%] shrink-0 snap-start sm:w-40"><Poster m={m} index={i} size="sm" rank={ranked ? i + 1 : undefined} /></div>)
+            : <EmptyBox>Nothing here yet.</EmptyBox>}
+        </div>
+      )}
+    </section>
   );
 }
 
-// ---------- Quick view ----------
-export function QuickView() {
-  const { openSeries: s, setOpenSeries } = useApp();
-  const [, navigate] = useLocation();
-  useEffect(() => { if (s) { navigate(`/series/${s.slug}`); setOpenSeries(null); } }, [s?.id]);
-  return null;
-}
-let toastSoon = () => {};
-export function ToastBridge() {
-  const { toast } = useToast();
-  toastSoon = () => toast({ title: "Reader arrives in the next build", description: "The series page and chapter reader are the next pages we build." });
-  return null;
+// ---------- States ----------
+export function PageHead({ icon: Icon, kicker, title, sub, action }: { icon?: any; kicker?: string; title: string; sub?: ReactNode; action?: ReactNode }) {
+  return (
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div className="min-w-0">
+        {kicker && <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
+        {sub && <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">{sub}</p>}
+      </div>
+      {action}
+    </div>
+  );
 }
 
-// ---------- Auth dialog ----------
+export function EmptyBox({ children, action }: { children: ReactNode; action?: ReactNode }) {
+  return <div className="w-full rounded-2xl border border-dashed border-border bg-card/60 px-5 py-6 text-sm text-muted-foreground" data-testid="empty-state">{children}{action && <div className="mt-3">{action}</div>}</div>;
+}
+
+export function InlineError({ error, onRetry, title }: { error: unknown; onRetry?: () => void; title?: string }) {
+  const { describe } = useErrorText(error);
+  return (
+    <div className="flex w-full flex-col items-start gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-4 text-sm" role="alert" data-testid="error-state">
+      <p className="flex items-center gap-2 font-semibold"><WifiOff className="h-4 w-4 text-destructive" />{title ?? describe.title}</p>
+      <p className="text-muted-foreground">{describe.detail}</p>
+      {onRetry && <Button size="sm" variant="secondary" onClick={onRetry} className="gap-1.5 rounded-full" data-testid="button-retry"><RotateCw className="h-3.5 w-3.5" />Try again</Button>}
+    </div>
+  );
+}
+
+function useErrorText(error: unknown) { return { describe: describeCatalogError(error) }; }
+
+export function SignInPrompt({ what }: { what: string }) {
+  const { openAuth } = useApp();
+  return (
+    <EmptyBox action={<div className="flex gap-2"><Button className="rounded-full" onClick={() => openAuth("login")} data-testid="button-prompt-signin">Sign in</Button><Button variant="outline" className="rounded-full" onClick={() => openAuth("signup")} data-testid="button-prompt-signup">Create account</Button></div>}>
+      Sign in to {what}.
+    </EmptyBox>
+  );
+}
+
+// ---------- Auth dialog (Supabase email + password) ----------
 export function AuthDialog() {
-  const { authOpen, closeAuth, openAuth, signIn } = useApp();
-  const [form, setForm] = useState({ username: "", password: "", displayName: "" });
+  const { authOpen, closeAuth, openAuth } = useApp();
+  const [form, setForm] = useState({ email: "", password: "", name: "" });
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState<ReactNode>(null);
+  const [pending, setPending] = useState(false);
   const [showPw, setShowPw] = useState(false);
-  const isSignup = authOpen === "signup";
-  useEffect(() => { setError(""); setShowPw(false); }, [authOpen]);
-  const uname = String(normalizeUsername(form.username));
-  const userIssue = uname.length < 3 ? "At least 3 characters" : uname.length > 24 ? "At most 24 characters" : !USERNAME_RE.test(uname) ? "Use letters, numbers, _ . or - only" : null;
-  const m = useMutation({
-    mutationFn: async () => (await apiRequest("POST", isSignup ? "/api/auth/signup" : "/api/auth/login", isSignup ? form : { username: form.username, password: form.password })).json(),
-    onSuccess: (d: any) => { signIn(d.token, d.user); setForm({ username: "", password: "", displayName: "" }); setShowPw(false); },
-    onError: (e: Error) => setError(e.message),
-  });
+  const mode = authOpen || "login";
+  useEffect(() => { setError(""); setNotice(null); setShowPw(false); }, [authOpen]);
+  const redirect = window.location.origin + window.location.pathname;
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pending) return;
+    setError(""); setNotice(null);
+    const email = form.email.trim().toLowerCase();
+    if (mode === "signup") {
+      if (form.name.trim().length < 2) return setError("Display name must be at least 2 characters.");
+      if (form.password.length < 8) return setError("Password must be at least 8 characters.");
+    }
+    setPending(true);
+    try {
+      if (mode === "login") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password: form.password });
+        if (error) throw error;
+        closeAuth(); setForm({ email: "", password: "", name: "" });
+      } else if (mode === "signup") {
+        const { data, error } = await supabase.auth.signUp({ email, password: form.password, options: { data: { display_name: form.name.trim().slice(0, 40) }, emailRedirectTo: redirect } });
+        if (error) throw error;
+        if (data.session) { closeAuth(); setForm({ email: "", password: "", name: "" }); }
+        else if (data.user && (data.user.identities?.length ?? 0) === 0) setError("An account with this email already exists. Sign in instead.");
+        else setNotice(<><MailCheck className="mb-1 h-5 w-5 text-primary" />Account created. We sent a confirmation link to <b className="text-foreground">{email}</b>. Open it, then come back and sign in.</>);
+      } else {
+        if (form.password) {
+          const { error } = await supabase.auth.updateUser({ password: form.password });
+          if (error) throw error;
+          setNotice("Password updated. You're signed in.");
+        } else {
+          const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: redirect });
+          if (error) throw error;
+          setNotice(<>If <b className="text-foreground">{email}</b> has an account, a reset link is on its way.</>);
+        }
+      }
+    } catch (err: any) {
+      const m = errMsg(err);
+      setError(/Email not confirmed/i.test(m) ? "Your email isn't confirmed yet. Open the link we emailed you, or resend it below." : /Invalid login credentials/i.test(m) ? "Wrong email or password." : m);
+    } finally { setPending(false); }
+  };
+
+  const resend = async () => {
+    setPending(true);
+    const { error } = await supabase.auth.resend({ type: "signup", email: form.email.trim().toLowerCase(), options: { emailRedirectTo: redirect } });
+    setPending(false);
+    if (error) setError(errMsg(error)); else { setError(""); setNotice("Confirmation email sent again. Check your inbox and spam folder."); }
+  };
+
+  const { session } = useApp();
+  const recovering = mode === "reset" && !!session;
   return (
     <Dialog open={!!authOpen} onOpenChange={(o) => !o && closeAuth()}>
-      <DialogContent className="max-w-md border-white/10 sm:rounded-2xl">
-        <DialogTitle className="font-display text-2xl font-semibold">{isSignup ? "Join MANGASALT" : "Welcome back"}</DialogTitle>
-        <DialogDescription>{isSignup ? "Like series, follow creators, and keep your reading history." : "Sign in to like, comment and follow."}</DialogDescription>
-        <form className="mt-2 flex flex-col gap-3" onSubmit={(e) => { e.preventDefault(); if (m.isPending) return; if (isSignup && userIssue) return setError(userIssue); setError(""); m.mutate(); }}>
-          {isSignup && <Input placeholder="Display name" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} data-testid="input-displayname" required />}
-          <div>
-            <Input placeholder="Username" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} value={form.username}
-              onChange={(e) => setForm({ ...form, username: e.target.value })} aria-describedby="username-hint" data-testid="input-username" required />
-            {isSignup && form.username.trim() && (
-              <p id="username-hint" className={`mt-1 px-1 text-xs ${userIssue ? "text-primary" : "text-muted-foreground"}`} data-testid="text-username-hint">
-                {userIssue ?? <>You'll be <span className="font-medium text-foreground">@{uname}</span></>}
-              </p>
-            )}
-          </div>
-          <div className="relative">
-            <Input placeholder="Password" type={showPw ? "text" : "password"} autoComplete={isSignup ? "new-password" : "current-password"} autoCapitalize="none" autoCorrect="off" spellCheck={false}
-              value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="pr-11" data-testid="input-password" required />
-            <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}
-              className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground" data-testid="button-toggle-password">
-              {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-            {isSignup && form.password && form.password.length < 6 && <p className="mt-1 px-1 text-xs text-muted-foreground">{6 - form.password.length} more character{6 - form.password.length === 1 ? "" : "s"} needed</p>}
-          </div>
-          {error && <p className="text-sm text-primary" data-testid="text-auth-error">{error}</p>}
-          <Button type="submit" disabled={m.isPending} className="mt-1 rounded-full" data-testid="button-auth-submit">
-            {m.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSignup ? "Create account" : "Sign in"}
+      <DialogContent className="max-w-md sm:rounded-2xl">
+        <DialogTitle className="font-display text-2xl font-semibold">{mode === "signup" ? "Join MANGASALT" : mode === "reset" ? (recovering ? "Choose a new password" : "Reset password") : "Welcome back"}</DialogTitle>
+        <DialogDescription>{mode === "signup" ? "Save series, keep your reading history and join the discussion." : mode === "reset" ? (recovering ? "Enter a new password for your account." : "We'll email you a link to set a new password.") : "Sign in with your email and password."}</DialogDescription>
+        <form className="mt-2 flex flex-col gap-3" onSubmit={submit}>
+          {mode === "signup" && <Input placeholder="Display name" autoComplete="nickname" maxLength={40} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="input-displayname" required />}
+          {!recovering && <Input placeholder="Email" type="email" autoComplete="email" autoCapitalize="none" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} data-testid="input-email" required />}
+          {(mode !== "reset" || recovering) && (
+            <div className="relative">
+              <Input placeholder={recovering ? "New password" : "Password"} type={showPw ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"}
+                value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="pr-11" minLength={mode === "login" ? 1 : 8} data-testid="input-password" required />
+              <button type="button" onClick={() => setShowPw((v) => !v)} aria-label={showPw ? "Hide password" : "Show password"} aria-pressed={showPw}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground hover:text-foreground" data-testid="button-toggle-password">
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              {mode !== "login" && form.password && form.password.length < 8 && <p className="mt-1 px-1 text-xs text-muted-foreground">{8 - form.password.length} more character{8 - form.password.length === 1 ? "" : "s"} needed</p>}
+            </div>
+          )}
+          {error && <p className="text-sm text-destructive dark:text-red-400" role="alert" data-testid="text-auth-error">{error}</p>}
+          {notice && <div className="rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm text-muted-foreground" data-testid="text-auth-notice">{notice}</div>}
+          <Button type="submit" disabled={pending} className="mt-1 rounded-full" data-testid="button-auth-submit">
+            {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{mode === "signup" ? "Create account" : mode === "reset" ? (recovering ? "Update password" : "Send reset link") : "Sign in"}
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
-            {isSignup ? "Already have an account?" : "New here?"}{" "}
-            <button type="button" className="font-medium text-foreground underline-offset-4 hover:underline" onClick={() => openAuth(isSignup ? "login" : "signup")} data-testid="button-auth-switch">
-              {isSignup ? "Sign in" : "Create an account"}
-            </button>
-          </p>
-          {!isSignup && <p className="text-center text-xs text-muted-foreground">Demo reader: <code className="text-foreground">nightowl</code> / <code className="text-foreground">reader123</code></p>}
+          {/confirm/i.test(error) && form.email && <Button type="button" variant="outline" className="rounded-full" onClick={resend} disabled={pending} data-testid="button-resend">Resend confirmation email</Button>}
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            {mode === "login" && <button type="button" className="hover:text-foreground" onClick={() => openAuth("reset")} data-testid="button-auth-forgot">Forgot password?</button>}
+            <span>
+              {mode === "signup" ? "Already have an account?" : mode === "login" ? "New here?" : "Remembered it?"}{" "}
+              <button type="button" className="font-medium text-foreground underline-offset-4 hover:underline" onClick={() => openAuth(mode === "login" ? "signup" : "login")} data-testid="button-auth-switch">
+                {mode === "login" ? "Create an account" : "Sign in"}
+              </button>
+            </span>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ---------- Save ----------
-export function SaveButton({ s, compact: small = false }: { s: SeriesCard; compact?: boolean }) {
-  const { user, openAuth } = useApp();
-  const [saved, setSaved] = useState(s.savedByMe);
-  useEffect(() => setSaved(s.savedByMe), [s.savedByMe]);
-  const m = useMutation({
-    mutationFn: async () => (await apiRequest("POST", `/api/series/${s.id}/save`)).json(),
-    onSuccess: (d: any) => { setSaved(d.saved); invalidatePrefixes("/api/me/library", "/api/series", "/api/home"); },
-  });
-  const onClick = (e: React.MouseEvent) => { e.stopPropagation(); user ? m.mutate() : openAuth("login"); };
-  if (small) return (
-    <button onClick={onClick} aria-label={saved ? "Remove from saved" : "Save"} data-testid={`button-save-${s.id}`}
-      className="grid h-9 w-9 place-items-center rounded-full bg-black/55 text-white backdrop-blur transition hover:bg-black/75">
-      <Bookmark className={`h-4 w-4 ${saved ? "fill-primary text-primary" : ""}`} />
-    </button>
-  );
-  return (
-    <Button variant={saved ? "secondary" : "outline"} className="gap-2 rounded-full" onClick={onClick} data-testid={`button-save-${s.id}`}>
-      <Bookmark className={`h-4 w-4 ${saved ? "fill-primary text-primary" : ""}`} />{saved ? "Saved" : "Save"}
-    </Button>
   );
 }
 
@@ -240,40 +272,58 @@ export function SaveButton({ s, compact: small = false }: { s: SeriesCard; compa
 export const TABS = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/trending", label: "Trending", icon: Flame },
-  { href: "/library", label: "Library", icon: LibraryIcon },
   { href: "/search", label: "Search", icon: Search },
-  { href: "/profile", label: "Profile", icon: UserIcon },
+  { href: "/library", label: "Library", icon: LibraryIcon },
+  { href: "/discussion", label: "Discuss", icon: MessagesSquare },
 ];
 
+const isActive = (loc: string, href: string) => (href === "/" ? loc === "/" : loc === href || loc.startsWith(href + "/"));
+
 export function TopBar() {
-  const { user, theme, toggleTheme } = useApp();
-  const [loc] = useLocation();
+  const { user, openAuth, signOut } = useApp();
+  const [loc, navigate] = useLocation();
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => { const h = () => setScrolled(window.scrollY > 12); h(); window.addEventListener("scroll", h, { passive: true }); return () => window.removeEventListener("scroll", h); }, []);
   return (
-    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-white/10 bg-background/35 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4 sm:h-16 sm:px-6">
-        <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">
-          MANGA<span className="text-primary">SALT</span>
-        </Link>
+    <header className={`sticky top-0 z-40 transition-colors duration-300 ${scrolled ? "border-b border-border/60 bg-background/70 backdrop-blur-2xl backdrop-saturate-150" : "bg-transparent"}`}>
+      <div className="mx-auto flex h-14 max-w-6xl items-center gap-5 px-4 sm:h-16 sm:px-6">
+        <Link href="/" className="font-display text-lg font-bold tracking-tight sm:text-xl" data-testid="link-home" aria-label="MANGASALT home">MANGA<span className="text-primary">SALT</span></Link>
         <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
-          {TABS.slice(0, 4).map((t) => (
+          {TABS.map((t) => (
             <Link key={t.href} href={t.href} data-testid={`link-top-${t.label.toLowerCase()}`}
-              className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${loc === t.href ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-              {loc === t.href && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-accent" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
-              <span className="relative">{t.label}</span>
+              className={`relative rounded-full px-3 py-1.5 text-sm font-medium transition ${isActive(loc, t.href) ? "text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
+              {isActive(loc, t.href) && <motion.span layoutId="top-pill" className="absolute inset-0 rounded-full bg-accent" transition={{ type: "spring", stiffness: 400, damping: 34 }} />}
+              <span className="relative">{t.label === "Discuss" ? "Discussion" : t.label}</span>
             </Link>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
-          <Link href="/studio" data-testid="link-top-studio" className={`mr-1 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition md:flex ${loc.startsWith("/studio") ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"}`}>
-            <PenTool className="h-3.5 w-3.5" />Studio
-          </Link>
+          {(user?.role === "creator" || user?.role === "admin") && (
+            <Link href="/studio" data-testid="link-top-studio" className={`mr-1 hidden items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition md:flex ${loc.startsWith("/studio") ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:border-primary/60 hover:text-foreground"}`}>
+              <PenTool className="h-3.5 w-3.5" />Studio
+            </Link>
+          )}
           <ThemeSwitch />
-          <Link href="/profile" aria-label="Profile" data-testid="button-profile"
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-white/5 text-muted-foreground backdrop-blur-md transition hover:bg-white/10 hover:text-foreground">
-            {user ? <Avatar user={user} size={34} /> : <UserIcon className="h-4 w-4" />}
-          </Link>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button aria-label="Account menu" data-testid="button-account" className="grid h-9 w-9 place-items-center rounded-full ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Avatar name={user.name} hue={user.hue} size={34} /></button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="truncate">{user.name}<span className="block truncate text-xs font-normal text-muted-foreground">{user.email}</span></DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => navigate("/profile")} data-testid="menu-profile"><UserIcon className="mr-2 h-4 w-4" />Profile</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate("/history")} data-testid="menu-history"><History className="mr-2 h-4 w-4" />Reading history</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate("/settings")} data-testid="menu-settings"><Settings className="mr-2 h-4 w-4" />Settings</DropdownMenuItem>
+                {(user.role === "creator" || user.role === "admin") && <DropdownMenuItem onSelect={() => navigate("/studio")} data-testid="menu-studio"><PenTool className="mr-2 h-4 w-4" />Creator studio</DropdownMenuItem>}
+                {user.role === "admin" && <DropdownMenuItem onSelect={() => navigate("/admin")} data-testid="menu-admin"><Shield className="mr-2 h-4 w-4" />Admin dashboard</DropdownMenuItem>}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => signOut()} data-testid="menu-signout"><LogOut className="mr-2 h-4 w-4" />Sign out</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button size="sm" className="rounded-full" onClick={() => openAuth("login")} data-testid="button-signin">Sign in</Button>
+          )}
         </div>
       </div>
     </header>
@@ -282,17 +332,18 @@ export function TopBar() {
 
 export function BottomNav() {
   const [loc] = useLocation();
+  const tabs = TABS; // profile lives in the top-bar account menu on every screen size
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),10px)] md:hidden" aria-label="Tabs">
       <div className="glass-nav mx-auto flex max-w-md items-center justify-between rounded-[22px] px-2 py-1.5">
-        {TABS.map((t) => {
-          const active = loc === t.href;
+        {tabs.map((t) => {
+          const active = isActive(loc, t.href);
           const Icon = t.icon;
           return (
             <Link key={t.href} href={t.href} data-testid={`tab-${t.label.toLowerCase()}`} aria-current={active ? "page" : undefined}
               className={`relative flex flex-1 flex-col items-center gap-0.5 rounded-xl py-1.5 text-[11px] font-medium transition ${active ? "text-primary" : "text-muted-foreground"}`}>
-              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15 shadow-[0_0_24px_hsl(var(--primary)/0.35)]" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
-              <motion.span className="relative" animate={active ? { y: [0, -4, 0], scale: [1, 1.18, 1] } : { y: 0, scale: 1 }} transition={{ duration: 0.45 }}><Icon className={`h-5 w-5 ${active ? "drop-shadow-[0_0_8px_hsl(var(--primary))]" : ""}`} /></motion.span>
+              {active && <motion.span layoutId="tab-glow" className="absolute inset-x-2 inset-y-0 rounded-xl bg-primary/15" transition={{ type: "spring", stiffness: 420, damping: 34 }} />}
+              <Icon className="relative h-5 w-5" />
               <span className="relative">{t.label}</span>
             </Link>
           );
@@ -302,62 +353,11 @@ export function BottomNav() {
   );
 }
 
-export function PageHead({ icon: Icon, kicker, title, sub }: { icon?: any; kicker?: string; title: string; sub?: string }) {
-  return (
-    <div className="mb-5">
-      {kicker && <p className="mb-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.18em] text-primary">{Icon && <Icon className="h-3.5 w-3.5" />}{kicker}</p>}
-      <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-      {sub && <p className="mt-1.5 max-w-xl text-sm text-muted-foreground">{sub}</p>}
-    </div>
-  );
-}
-
-export function EmptyBox({ children }: { children: ReactNode }) {
-  return <div className="rounded-2xl border border-border bg-card/60 px-5 py-6 text-sm text-muted-foreground">{children}</div>;
-}
-
-export function RankRow({ s, rank, score, max, unit = "likes" }: { s: SeriesCard; rank: number; score?: number; max?: number; unit?: string }) {
-  const { setOpenSeries } = useApp();
-  const pct = score !== undefined && max ? Math.max(6, (score / max) * 100) : null;
-  return (
-    <motion.li layout initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 24 }}
-      transition={{ layout: { type: "spring", stiffness: 380, damping: 34 }, default: { type: "spring", stiffness: 300, damping: 28, delay: Math.min(rank, 10) * 0.045 } }}
-      whileHover={{ x: 4 }} whileTap={{ scale: 0.985 }}
-      className="group relative flex min-w-0 cursor-pointer items-center gap-3 border-b border-border/70 py-3 sm:gap-4" onClick={() => setOpenSeries(s)} data-testid={`row-rank-${s.id}`}>
-      <motion.span key={rank} initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        className={`rank-numeral font-display w-8 shrink-0 text-center text-3xl font-bold tabular-nums sm:w-10 sm:text-4xl ${rank <= 3 ? "top" : ""}`}>{rank}</motion.span>
-      <div className="relative shrink-0">
-        <img src={asset(s.cover)} alt="" className="h-[72px] w-12 rounded-md object-cover ring-1 ring-white/5 transition duration-300 group-hover:scale-105 group-hover:shadow-lg group-hover:shadow-primary/30" loading="lazy" />
-        {rank === 1 && <motion.span className="absolute -inset-1 -z-10 rounded-lg bg-primary/40 blur-md" animate={{ opacity: [0.35, 0.9, 0.35] }} transition={{ duration: 2.4, repeat: Infinity }} />}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="truncate font-semibold transition-colors group-hover:text-primary">{s.title}</h3>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <TypeBadge type={s.type} />
-          {s.rating > 0 && <span className="flex items-center gap-0.5"><Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />{s.rating.toFixed(1)}</span>}
-          {score !== undefined && <span className="tabular-nums">{compact(score)} {unit}</span>}
-        </div>
-        {pct !== null ? (
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-            <motion.div className="h-full rounded-full bg-gradient-to-r from-primary/60 to-primary" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 + Math.min(rank, 10) * 0.05 }} />
-          </div>
-        ) : (
-          <p className={`mt-1 flex items-center gap-1 truncate text-xs ${s.readable ? "text-emerald-500" : "text-muted-foreground"}`}><ShieldCheck className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{rightsLabel(s)}</span></p>
-        )}
-      </div>
-      <div onClick={(e) => e.stopPropagation()}><LikeButton s={s} /></div>
-    </motion.li>
-  );
-}
-
 // ---------- Theme switch (sun / moon) ----------
-/** Animated day/night switch: the new theme spreads across the screen in a circle from the button. */
 export function ThemeSwitch({ className = "" }: { className?: string }) {
   const { theme, toggleTheme } = useApp();
   const dark = theme === "dark";
-  const [burst, setBurst] = useState(0);
   const onClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    setBurst((b) => b + 1);
     const doc: any = document;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     if (!doc.startViewTransition || reduce) { toggleTheme(); return; }
@@ -368,41 +368,20 @@ export function ThemeSwitch({ className = "" }: { className?: string }) {
     const vt = doc.startViewTransition(() => { flushSync(toggleTheme); document.documentElement.classList.toggle("dark", next === "dark"); });
     vt.ready.then(() => {
       document.documentElement.animate({ clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${end}px at ${x}px ${y}px)`] },
-        { duration: 650, easing: "cubic-bezier(.65,0,.35,1)", pseudoElement: "::view-transition-new(root)" });
+        { duration: 600, easing: "cubic-bezier(.65,0,.35,1)", pseudoElement: "::view-transition-new(root)" });
     }).catch(() => {});
   };
   return (
     <button role="switch" aria-checked={dark} aria-label="Dark mode" onClick={onClick} data-testid="switch-theme"
-      className={`group relative flex h-8 w-[62px] shrink-0 items-center overflow-hidden rounded-full border p-0.5 transition-colors duration-700 ${dark ? "border-white/10 bg-gradient-to-br from-[hsl(232_45%_12%)] to-[hsl(260_40%_20%)]" : "border-sky-300/70 bg-gradient-to-br from-sky-300 to-amber-200"} ${className}`}>
-      {/* night sky: twinkling stars */}
-      {[[10, 7, 0], [20, 18, 0.6], [30, 9, 1.2], [14, 22, 1.8]].map(([l, t, d], i) => (
+      className={`relative flex h-8 w-[58px] shrink-0 items-center overflow-hidden rounded-full border p-0.5 transition-colors duration-700 ${dark ? "border-white/10 bg-gradient-to-br from-[hsl(232_45%_12%)] to-[hsl(260_40%_20%)]" : "border-sky-300/70 bg-gradient-to-br from-sky-300 to-amber-200"} ${className}`}>
+      {[[10, 7, 0], [20, 18, 0.6], [30, 9, 1.2]].map(([l, t, d], i) => (
         <motion.span key={i} className="absolute h-[2px] w-[2px] rounded-full bg-white" style={{ left: l, top: t }}
-          animate={dark ? { opacity: [0.2, 1, 0.2], scale: [0.8, 1.4, 0.8], y: 0 } : { opacity: 0, y: 10 }} transition={dark ? { duration: 1.8, repeat: Infinity, delay: d } : { duration: 0.3 }} />
-      ))}
-      {/* day sky: drifting clouds */}
-      {[[30, 15, 14], [40, 6, 10]].map(([l, t, w], i) => (
-        <motion.span key={i} className="absolute h-[6px] rounded-full bg-white/90" style={{ left: l, top: t, width: w }}
-          animate={dark ? { opacity: 0, y: 12 } : { opacity: 1, y: 0, x: [0, 4, 0] }} transition={dark ? { duration: 0.3 } : { x: { duration: 3 + i, repeat: Infinity, ease: "easeInOut" }, default: { duration: 0.4 } }} />
+          animate={dark ? { opacity: [0.2, 1, 0.2] } : { opacity: 0 }} transition={dark ? { duration: 1.8, repeat: Infinity, delay: d } : { duration: 0.3 }} />
       ))}
       <motion.span layout transition={{ type: "spring", stiffness: 520, damping: 28 }}
-        className={`relative z-10 grid h-6 w-6 place-items-center rounded-full ${dark ? "ml-auto bg-gradient-to-br from-slate-100 to-indigo-200 shadow-[0_0_12px_rgba(199,210,254,.7)]" : "bg-gradient-to-br from-amber-300 to-orange-500 shadow-[0_0_14px_rgba(251,191,36,.9)]"}`}>
+        className={`relative z-10 grid h-6 w-6 place-items-center rounded-full ${dark ? "ml-auto bg-gradient-to-br from-slate-100 to-indigo-200" : "bg-gradient-to-br from-amber-300 to-orange-500"}`}>
         <AnimatePresence mode="wait" initial={false}>
-          {dark ? (
-            <motion.span key="moon" className="relative block h-6 w-6" initial={{ rotate: -90, scale: 0.3 }} animate={{ rotate: 0, scale: 1 }} exit={{ rotate: 90, scale: 0.3 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
-              <span className="absolute left-[7px] top-[5px] h-[5px] w-[5px] rounded-full bg-indigo-300/70" />
-              <span className="absolute left-[13px] top-[12px] h-[4px] w-[4px] rounded-full bg-indigo-300/70" />
-              <span className="absolute left-[6px] top-[14px] h-[3px] w-[3px] rounded-full bg-indigo-300/60" />
-            </motion.span>
-          ) : (
-            <motion.span key="sun" className="relative block h-6 w-6" initial={{ rotate: 90, scale: 0.3 }} animate={{ rotate: 0, scale: 1 }} exit={{ rotate: -90, scale: 0.3 }} transition={{ type: "spring", stiffness: 400, damping: 20 }}>
-              <motion.span className="absolute inset-0" animate={{ rotate: 360 }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }}>
-                {Array.from({ length: 8 }).map((_, k) => <span key={k} className="absolute left-1/2 top-1/2 h-[3px] w-[1.5px] rounded bg-white/90" style={{ transform: `rotate(${k * 45}deg) translateY(-9px)` }} />)}
-              </motion.span>
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <AnimatePresence>
-          {burst > 0 && <motion.span key={burst} className={`pointer-events-none absolute inset-0 rounded-full border-2 ${dark ? "border-indigo-200" : "border-amber-300"}`} initial={{ scale: 1, opacity: 0.9 }} animate={{ scale: 3, opacity: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.6 }} />}
+          <motion.span key={dark ? "moon" : "sun"} className="block h-6 w-6" initial={{ rotate: -90, scale: 0.3 }} animate={{ rotate: 0, scale: 1 }} exit={{ rotate: 90, scale: 0.3 }} />
         </AnimatePresence>
       </motion.span>
     </button>

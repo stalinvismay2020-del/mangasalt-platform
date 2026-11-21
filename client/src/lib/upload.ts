@@ -1,7 +1,7 @@
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, errMsg } from "@/lib/supabase";
 
 const MAX_W = 1200;      // page width after resizing
-const SLICE_H = 6000;    // tall webtoon strips are split into pages of this height
+const SLICE_H = 6000;    // tall vertical strips are split into pages of this height
 
 function loadImage(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -44,19 +44,31 @@ export async function prepareImage(file: File, opts: { maxW?: number; split?: bo
   return out;
 }
 
-export async function uploadData(data: string): Promise<string> {
+function dataUrlToBlob(data: string): Blob {
+  const [head, b64] = data.split(",", 2);
+  const mime = /data:([^;]+)/.exec(head)?.[1] ?? "image/jpeg";
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+}
+
+/** Upload one prepared image to the public `pages` bucket inside the user's own folder. Returns the storage path. */
+export async function uploadData(data: string, folder: string): Promise<string> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("You were signed out. Sign in again, then upload.");
+  const blob = dataUrlToBlob(data);
+  const ext = blob.type === "image/webp" ? "webp" : blob.type === "image/png" ? "png" : "jpg";
+  const safe = folder.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 60) || "misc";
+  const path = `${u.user.id}/${safe}/${crypto.randomUUID()}.${ext}`;
   let last: any;
   for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const r = await apiRequest("POST", "/api/studio/upload", { data });
-      return (await r.json()).path as string;
-    } catch (e: any) {
-      last = e;
-      if (e?.status && e.status < 500 && e.status !== 408 && e.status !== 429) break; // real problem, don't retry
-      await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1)));
-    }
+    const { error } = await supabase.storage.from("pages").upload(path, blob, { contentType: blob.type, upsert: false, cacheControl: "31536000" });
+    if (!error) return path;
+    last = error;
+    const status = Number((error as any).statusCode ?? (error as any).status ?? 0);
+    if (status && status < 500 && status !== 408 && status !== 429) break;
+    await new Promise((ok) => setTimeout(ok, 800 * (attempt + 1)));
   }
-  if (last?.status === 401) throw new Error("You were signed out. Sign in again, then upload.");
-  if (!last?.status) throw new Error("Upload failed. Check your internet connection and try again.");
-  throw last;
+  throw new Error(`Upload failed: ${errMsg(last)}`);
 }

@@ -6,9 +6,9 @@ import { Scale, ShieldCheck, FileText, Lock, Copyright as CopyrightIcon, BadgeCh
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { apiRequest } from "@/lib/queryClient";
+import { supabase, errMsg } from "@/lib/supabase";
 
-const UPDATED = "17 November 2026";
+const UPDATED = "21 November 2026";
 const TABS = [
   ["", "Overview", Scale],
   ["licenses", "Licenses & credits", BadgeCheck],
@@ -27,9 +27,8 @@ function Overview() {
   return (
     <>
       <H>How MANGASALT stays legal</H>
-      <P>MANGASALT is a discovery and community app. It does not copy, store or redistribute anyone else's manga. Every chapter you read comes from one of three places:</P>
+      <P>MANGASALT is a catalogue, reader and community app. It does not copy or redistribute anyone else's manga. Pages are only shown when MANGASALT has the right to show them:</P>
       <ul className="mt-3 space-y-2">
-        <Li><b className="text-foreground">Official publishers' own readers</b> (MANGA Plus by Shueisha, Tapas), shown inside the app exactly as the publisher serves them, with their ads, locks and coins intact.</Li>
         <Li><b className="text-foreground">Openly licensed comics</b> such as Pepper&amp;Carrot (CC BY 4.0), hosted with full credit.</Li>
         <Li><b className="text-foreground">Creators' own work</b>, uploaded through Creator Studio by people who confirm they own the rights.</Li>
       </ul>
@@ -37,8 +36,8 @@ function Overview() {
       <ul className="mt-3 space-y-2">
         <No>Show fan scanlations or images taken from unofficial manga sites.</No>
         <No>Remove publisher paywalls, ads or "wait-free" timers.</No>
-        <No>List a title unless it has a verified official English edition.</No>
-        <No>Sell access to catalogue data from AniList or MangaDex.</No>
+        <No>Pretend a chapter is readable when MANGASALT has no licensed pages for it. Catalogue chapters without a licence are listed for reference and clearly marked as unavailable.</No>
+        <No>Sell access to catalogue data from the Dawghwa API or its upstream sources.</No>
       </ul>
       <H>Rights holders</H>
       <P>If you own a work and something on MANGASALT shouldn't be here, send a <Link href="/legal/copyright" className="font-medium text-primary hover:underline">takedown request</Link>. We remove it promptly.</P>
@@ -51,18 +50,16 @@ function Licenses() {
     <>
       <H>The MANGASALT app</H>
       <P>The MANGASALT name, logo, design and source code are © 2026 MANGASALT. All rights reserved. They may not be copied or redistributed without written permission.</P>
-      <H>Catalogue data · AniList</H>
-      <P>Titles, covers, descriptions, genres and scores come from the <A href="https://anilist.co">AniList</A> API, used under the <A href="https://docs.anilist.co/guide/terms-of-use">AniList API Terms of Use</A>. Use is free for non-commercial apps and for commercial apps earning under $150 a month; above that, MANGASALT needs a commercial license from AniList. MANGASALT is not affiliated with AniList. Cover art and descriptions belong to their respective publishers and authors and are shown only to identify each title.</P>
-      <H>Official chapter index · MangaDex</H>
-      <P>Links to official publisher chapters (for example MANGA Plus) are found with the <A href="https://api.mangadex.org/docs/">MangaDex API</A>. Thanks to MangaDex. Under its policy MANGASALT runs no ads or paid services on top of MangaDex data. No MangaDex-hosted scans are shown.</P>
-      <H>Publisher readers</H>
-      <P>MANGA Plus chapters are © Shueisha and their creators. Tapas episodes are © their creators and Tapas Entertainment. Both are shown in each publisher's own reader. MANGASALT does not host their pages, and every view counts for the publisher.</P>
+      <H>Catalogue data · Dawghwa API</H>
+      <P>Titles, covers, descriptions, genres, scores and chapter listings come from the <A href="https://dawghwaapi.vercel.app">Dawghwa API</A>, called only from MANGASALT's server. Dawghwa's metadata is sourced from <A href="https://anilist.co">AniList</A> and its chapter index from <A href="https://mangadex.org">MangaDex</A>; MANGASALT is not affiliated with any of them. Cover art and descriptions belong to their publishers and authors and are shown only to identify each title.</P>
+      <H>Chapter pages</H>
+      <P>The Dawghwa API can also return page images from third-party sites. MANGASALT does not display those pages, because none of the available sources hold a licence. Only pages from creators and openly licensed works hosted on MANGASALT are readable.</P>
       <H>Pepper&amp;Carrot</H>
       <P>Pepper&amp;Carrot by <A href="https://www.peppercarrot.com">David Revoy</A> is licensed under <A href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0</A>. It is hosted on MANGASALT unchanged apart from format conversion.</P>
       <H>Creator originals</H>
       <P>Creators keep full ownership of what they publish. By publishing, a creator gives MANGASALT a non-exclusive, worldwide, royalty-free license to host and display that work in the app until they delete it.</P>
       <H>Fonts &amp; libraries</H>
-      <P>Clash Display and Switzer by <A href="https://www.fontshare.com">Indian Type Foundry (Fontshare)</A>, free for commercial use. Open-source libraries (React, Express, Tailwind CSS, Framer Motion, Lucide and others) are used under their MIT/ISC licenses.</P>
+      <P>Clash Display and Switzer by <A href="https://www.fontshare.com">Indian Type Foundry (Fontshare)</A>, free for commercial use. Open-source libraries (React, Supabase, Tailwind CSS, Framer Motion, Lucide and others) are used under their MIT/ISC licenses.</P>
     </>
   );
 }
@@ -76,8 +73,8 @@ function Terms() {
       <P>You own the comments and comics you post. Only upload work you created or have written permission to publish. You may not upload anyone else's manga, scans, raws or translations, or any sexual content involving minors. Breaking this rule removes the content and can close your account.</P>
       <H>3. Community rules</H>
       <P>Be respectful. No harassment, hate speech, spam, or unmarked spoilers. Use the spoiler toggle and the report button. Moderators may remove comments that break these rules.</P>
-      <H>4. Third-party readers</H>
-      <P>Chapters from MANGA Plus and Tapas are provided by those publishers under their own terms. Unlocking paid or wait-free episodes happens with the publisher, not MANGASALT.</P>
+      <H>4. Catalogue information</H>
+      <P>Catalogue titles and chapter listings come from a third-party API and are shown for discovery. A listed chapter is not necessarily readable on MANGASALT; its availability is always shown next to it.</P>
       <H>5. Repeat infringers</H>
       <P>Accounts that receive repeated valid copyright complaints are closed.</P>
       <H>6. No warranty</H>
@@ -93,8 +90,8 @@ function Privacy() {
     <>
       <H>What we store</H>
       <ul className="mt-3 space-y-2">
-        <Li>Your account: display name, username and a salted password hash (never your plain password).</Li>
-        <Li>Your activity: likes, saves, follows, comments, reading history and reading lists, so the app can show them back to you.</Li>
+        <Li>Your account: email address, display name and a password hash managed by our authentication provider, Supabase (never your plain password).</Li>
+        <Li>Your activity: likes, saves, comments, reports, reading history and reading progress, so the app can show them back to you.</Li>
         <Li>Files you upload in Creator Studio.</Li>
       </ul>
       <H>What we don't do</H>
@@ -102,8 +99,8 @@ function Privacy() {
         <No>Sell or share your data with advertisers.</No>
         <No>Use tracking cookies of our own.</No>
       </ul>
-      <H>Publisher readers</H>
-      <P>When you open a chapter from MANGA Plus or Tapas, that publisher's page loads inside the app and may set its own cookies under its own privacy policy.</P>
+      <H>Third-party services</H>
+      <P>Your account data is stored in Supabase. Catalogue requests go from MANGASALT's server to the Dawghwa API without your account details.</P>
       <H>Your choices</H>
       <P>You can delete your comments and creator uploads at any time. To delete your account and all its data, send a request through the <Link href="/legal/copyright" className="font-medium text-primary hover:underline">contact form</Link> using "Account deletion" as the work.</P>
     </>
@@ -120,9 +117,14 @@ function Copyright() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setErr(""); setState("sending");
     try {
-      await apiRequest("POST", "/api/legal/takedown", { ...f, goodFaith, accurate });
+      if (!goodFaith || !accurate) throw new Error("Please confirm both statements.");
+      const { error } = await supabase.from("takedown_requests").insert({
+        name: f.name.trim(), email: f.email.trim(), target: f.target.trim().slice(0, 1000),
+        details: `Work: ${f.ownerOf.trim()}\n\n${f.details.trim()}`.slice(0, 5000),
+      });
+      if (error) throw error;
       setState("sent");
-    } catch (x: any) { setErr(String(x?.message ?? "Something went wrong").replace(/^\d+:\s*/, "").replace(/^\{"message":"|"\}$/g, "")); setState("idle"); }
+    } catch (x) { setErr(errMsg(x)); setState("idle"); }
   };
   if (state === "sent") return (
     <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6 text-center" data-testid="text-takedown-sent">

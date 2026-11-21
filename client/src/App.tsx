@@ -15,9 +15,13 @@ import Profile from "@/pages/profile";
 import SeriesPage from "@/pages/series";
 import Reader from "@/pages/reader";
 import TitlePage from "@/pages/title";
-import OfficialReader from "@/pages/official-reader";
+import HistoryPage from "@/pages/history";
+import SettingsPage from "@/pages/settings";
+import DiscussionPage from "@/pages/discussion";
+import AdminPage from "@/pages/admin";
 import { StudioHome, StudioNew, StudioSeries } from "@/pages/studio";
-import { TopBar, BottomNav, QuickView, AuthDialog, ToastBridge } from "@/components/shared";
+import { TopBar, BottomNav, AuthDialog } from "@/components/shared";
+import { configError } from "@/lib/supabase";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion } from "framer-motion";
@@ -34,15 +38,12 @@ function ScrollTop() {
 
 function Shell() {
   const [loc] = useLocation();
-  if (loc.startsWith("/read/") || loc.startsWith("/mp/")) return (
+  if (loc.startsWith("/read/")) return (
     <>
       <ScrollTop />
-      <ToastBridge />
       <ErrorBoundary resetKey={loc}><Switch>
-        <Route path="/read/:id/:page" component={Reader} />
-        <Route path="/read/:id" component={Reader} />
-        <Route path="/mp/:id/:key" component={OfficialReader} />
-        <Route><NotFound /></Route>
+        <Route path="/read/:slug/:number" component={Reader} />
+        <Route><NotFound what="chapter" /></Route>
       </Switch></ErrorBoundary>
       <AuthDialog />
     </>
@@ -50,7 +51,6 @@ function Shell() {
   return (
     <div className="min-h-screen pb-24 md:pb-0">
       <ScrollTop />
-      <ToastBridge />
       <TopBar />
       <motion.main key={loc.split("/").slice(0, 3).join("/")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
         <ErrorBoundary resetKey={loc}><AppRouter /></ErrorBoundary>
@@ -59,7 +59,7 @@ function Shell() {
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:px-6 md:flex-row md:items-center md:justify-between">
           <div>
             <span className="font-display text-lg font-bold text-foreground">MANGA<span className="text-primary">SALT</span></span>
-            <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from AniList. Chapters only from official publishers, open licenses, or their own creators. No unofficial scans, ever.</p>
+            <p className="mt-1 max-w-md text-xs">© 2026 MANGASALT. Catalogue data from the Dawghwa API (AniList and MangaDex metadata). Pages are shown only for works MANGASALT is licensed to host: creator uploads and openly licensed comics.</p>
           </div>
           <nav className="flex flex-wrap gap-x-4 gap-y-2 text-xs" aria-label="Legal">
             <Link href="/legal/licenses" className="hover:text-foreground" data-testid="link-footer-licenses">Licenses &amp; credits</Link>
@@ -70,7 +70,6 @@ function Shell() {
         </div>
       </footer>
       <BottomNav />
-      <QuickView />
       <AuthDialog />
     </div>
   );
@@ -89,7 +88,12 @@ function AppRouter() {
       <Route path="/studio/new" component={StudioNew} />
       <Route path="/studio/series/:id" component={StudioSeries} />
       <Route path="/library" component={Library} />
+      <Route path="/history" component={HistoryPage} />
       <Route path="/profile" component={Profile} />
+      <Route path="/u/:id" component={Profile} />
+      <Route path="/discussion" component={DiscussionPage} />
+      <Route path="/settings" component={SettingsPage} />
+      <Route path="/admin" component={AdminPage} />
       <Route path="/series/:slug" component={SeriesPage} />
       <Route path="/legal" component={Legal} />
       <Route path="/legal/:section" component={Legal} />
@@ -98,7 +102,18 @@ function AppRouter() {
   );
 }
 
+function ConfigError() {
+  return (
+    <div className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 text-center" role="alert">
+      <p className="font-display text-2xl font-bold">MANGA<span className="text-primary">SALT</span></p>
+      <h1 className="mt-4 text-lg font-semibold">This build isn't configured</h1>
+      <p className="mt-2 text-sm text-muted-foreground">{configError}</p>
+    </div>
+  );
+}
+
 export default function App() {
+  if (configError) return <ConfigError />;
   return (
     <QueryClientProvider client={queryClient}>
       <AppProvider>
