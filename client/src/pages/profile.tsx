@@ -1,96 +1,88 @@
-import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Moon, Sun, Heart, BookOpen, MessageCircle, Users, PenTool, Scale } from "lucide-react";
+import { Link } from "wouter";
+import { UserRound, MessageSquare, Heart, Settings, Shield, PenTool, Bookmark, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageHead, Avatar, EmptyBox, ThemeSwitch } from "@/components/shared";
-import { useApp, compact } from "@/lib/app-context";
-import type { LibraryData } from "@shared/schema";
-import type { ReadingStats } from "@shared/world";
-import { motion } from "framer-motion";
-import { Flame as FlameIcon } from "lucide-react";
+import { useApp, timeAgo, compact } from "@/lib/app-context";
+import { profileSummary, userComments, listBookmarks, listReads } from "@/lib/data";
+import { Avatar, EmptyBox, InlineError, SignInPrompt, PageHead } from "@/components/shared";
+import NotFound from "@/pages/not-found";
 
-function ReadingStatsCard() {
-  const { user } = useApp();
-  const { data } = useQuery<ReadingStats>({ queryKey: ["/api/me/stats", { u: String(user?.id ?? "") }], enabled: !!user, refetchOnMount: "always", staleTime: 0 });
-  const max = Math.max(1, ...(data?.week ?? []).map((d) => d.count));
-  const days = ["S", "M", "T", "W", "T", "F", "S"];
+export default function ProfilePage({ params }: { params?: { id?: string } }) {
+  const { user, ready } = useApp();
+  const id = params?.id ?? user?.id;
+  const own = !!user && id === user.id;
+  const sum = useQuery({ queryKey: ["profile-summary", id], queryFn: () => profileSummary(id!), enabled: !!id });
+  const comments = useQuery({ queryKey: ["user-comments", id], queryFn: () => userComments(id!), enabled: !!id });
+  const saved = useQuery({ queryKey: ["bookmarks", user?.id], queryFn: () => listBookmarks(user!.id), enabled: own });
+  const reads = useQuery({ queryKey: ["history", user?.id, 60], queryFn: () => listReads(user!.id, 60), enabled: own });
+
+  if (!ready) return null;
+  if (!id) return <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6"><PageHead icon={UserRound} kicker="Account" title="Profile" /><SignInPrompt what="see your profile" /></div>;
+  if (sum.error) return <div className="mx-auto max-w-3xl px-4 py-10"><InlineError error={sum.error} onRetry={() => sum.refetch()} title="Couldn't load this profile" /></div>;
+  if (sum.isLoading) return <div className="mx-auto max-w-3xl px-4 py-10"><div className="shimmer relative h-40 overflow-hidden rounded-3xl bg-muted" /></div>;
+  if (!sum.data) return <NotFound what="profile" />;
+  const p = sum.data;
+  const name = own ? user!.name : p.name;
+  const hue = own ? user!.hue : p.hue;
+  const bio = own ? user!.bio : p.bio;
+
   return (
-    <section className="rounded-3xl border border-border bg-card p-5" data-testid="card-reading-stats">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="font-semibold">Reading stats</h2>
-          <p className="text-xs text-muted-foreground">{data ? `${data.chapters} chapter${data.chapters === 1 ? "" : "s"} across ${data.titles} title${data.titles === 1 ? "" : "s"}` : "Loading…"}</p>
-        </div>
-        <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-primary" data-testid="text-streak">
-          <motion.span animate={{ scale: [1, 1.25, 1], rotate: [0, -8, 6, 0] }} transition={{ duration: 1.4, repeat: Infinity }}><FlameIcon className="h-4 w-4 fill-primary/40" /></motion.span>
-          <span className="font-display text-lg font-semibold tabular-nums">{data?.streak ?? 0}</span><span className="text-xs">day streak</span>
-        </div>
-      </div>
-      <div className="mt-5 flex h-24 items-end gap-2">
-        {(data?.week ?? Array.from({ length: 7 }, (_, i) => ({ day: i, count: 0 }))).map((d, i) => (
-          <div key={d.day} className="flex flex-1 flex-col items-center gap-1.5">
-            <motion.div className={`w-full rounded-lg ${i === 6 ? "bg-primary" : "bg-primary/35"}`} initial={{ height: 4 }} animate={{ height: Math.max(4, (d.count / max) * 72) }} transition={{ type: "spring", stiffness: 160, damping: 18, delay: i * 0.05 }} />
-            <span className="text-[10px] text-muted-foreground">{days[new Date(d.day * 864e5).getUTCDay()]}</span>
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-card/60 p-5 sm:p-7">
+        <div className="absolute inset-0 -z-10 opacity-40" style={{ background: `radial-gradient(70% 90% at 0% 0%, hsl(${hue} 80% 50% / .35), transparent 70%)` }} />
+        <div className="flex flex-wrap items-center gap-4">
+          <Avatar name={name} hue={hue} size={72} />
+          <div className="min-w-0 flex-1">
+            <h1 className="font-display truncate text-2xl font-bold sm:text-3xl" data-testid="text-profile-name">{name}</h1>
+            <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              Joined {new Date(p.joined).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+              {p.role === "admin" && <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-xs font-semibold text-primary"><Shield className="h-3 w-3" />Admin</span>}
+              {p.role === "creator" && <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-500"><PenTool className="h-3 w-3" />Creator</span>}
+            </p>
+            {own && user!.email && <p className="text-xs text-muted-foreground">{user!.email}</p>}
           </div>
-        ))}
+          {own && <Link href="/settings"><Button variant="outline" className="gap-2 rounded-full" data-testid="button-edit-profile"><Settings className="h-4 w-4" />Edit profile</Button></Link>}
+        </div>
+        {bio ? <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-foreground/85" data-testid="text-profile-bio">{bio}</p> : own ? <p className="mt-4 text-sm text-muted-foreground">Add a short bio in settings.</p> : null}
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat icon={MessageSquare} label="Comments" value={p.comments} />
+          <Stat icon={Heart} label="Likes given" value={p.likes} />
+          {own && <Stat icon={Bookmark} label="Saved" value={saved.data?.length} />}
+          {own && <Stat icon={History} label="Chapters read" value={reads.data?.length} suffix={reads.data && reads.data.length >= 60 ? "+" : ""} />}
+        </div>
+        {own && (user!.role === "admin" || user!.role === "creator") && (
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link href="/studio"><Button size="sm" variant="secondary" className="gap-1.5 rounded-full" data-testid="link-studio"><PenTool className="h-3.5 w-3.5" />Creator studio</Button></Link>
+            {user!.role === "admin" && <Link href="/admin"><Button size="sm" variant="secondary" className="gap-1.5 rounded-full" data-testid="link-admin"><Shield className="h-3.5 w-3.5" />Admin</Button></Link>}
+          </div>
+        )}
       </div>
-      <p className="mt-3 text-xs text-muted-foreground">{data?.streak ? "Read a chapter today to keep your streak alive." : "Read a chapter today to start a streak."}</p>
-    </section>
+
+      <section className="mt-8" aria-labelledby="recent">
+        <h2 id="recent" className="font-display mb-3 text-lg font-semibold">Recent comments</h2>
+        {comments.error ? <InlineError error={comments.error} onRetry={() => comments.refetch()} />
+          : comments.isLoading ? <div className="shimmer relative h-20 overflow-hidden rounded-2xl bg-muted" />
+          : !comments.data?.length ? <EmptyBox>No comments yet.</EmptyBox>
+          : (
+            <ul className="space-y-2" data-testid="list-user-comments">
+              {comments.data.map((c) => {
+                const href = c.media_id ? `/title/${c.media_id}` : c.series_key?.startsWith("ms-") ? `/series/${c.series_key.slice(3)}` : null;
+                const body = c.spoiler ? "Spoiler hidden" : c.body;
+                const inner = (<><p className="line-clamp-3 text-sm">{body}</p><p className="mt-1 text-xs text-muted-foreground">{c.target_title ? `On ${c.target_title}` : "Comment"}{c.chapter_key ? ` · chapter ${c.chapter_key}` : ""} · {timeAgo(c.created_at)}</p></>);
+                return <li key={c.id} className="rounded-2xl border border-border bg-card/40 p-3">{href ? <Link href={href} className="block hover:text-primary">{inner}</Link> : inner}</li>;
+              })}
+            </ul>
+          )}
+      </section>
+    </div>
   );
 }
 
-export default function Profile() {
-  const { user, openAuth, signOut, theme, toggleTheme } = useApp();
-  const lib = useQuery<LibraryData>({ queryKey: ["/api/me/library", { u: String(user?.id ?? "") }], enabled: !!user });
-  if (!user)
-    return (
-      <div className="mx-auto max-w-md px-4 pb-10 pt-10 text-center sm:px-6">
-        <div className="mx-auto mb-5 grid h-20 w-20 place-items-center rounded-full border border-border bg-card shadow-[0_0_40px_hsl(var(--primary)/0.25)]"><Users className="h-8 w-8 text-primary" /></div>
-        <h1 className="font-display text-2xl font-semibold">Your MANGASALT profile</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Sign in to like series, save titles, follow creators and join discussions.</p>
-        <div className="mt-6 flex justify-center gap-2">
-          <Button className="rounded-full px-6" onClick={() => openAuth("login")} data-testid="button-profile-signin">Sign in</Button>
-          <Button variant="outline" className="rounded-full px-6" onClick={() => openAuth("signup")} data-testid="button-profile-signup">Create account</Button>
-        </div>
-        <div className="mx-auto mt-8 flex w-fit items-center gap-3 text-sm text-muted-foreground">Dark mode<ThemeSwitch /></div>
-      </div>
-    );
-  const c = lib.data?.counts;
-  const stats = [[Heart, "Likes", c?.likes], [BookOpen, "Series read", c?.read], [MessageCircle, "Comments", c?.comments], [Users, "Following", lib.data?.followedCreators.length]] as const;
+function Stat({ icon: Icon, label, value, suffix = "" }: { icon: any; label: string; value: number | undefined; suffix?: string }) {
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-4 pb-10 pt-4 sm:px-6">
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-card p-6">
-        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full blur-3xl" style={{ background: `hsl(${user.avatarHue} 70% 45% / .45)` }} />
-        <div className="relative flex items-center gap-4">
-          <Avatar user={user} size={64} />
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-2xl font-semibold" data-testid="text-profile-name">{user.displayName}</h1>
-            <p className="text-sm text-muted-foreground">@{user.username}{user.isCreator ? " · Creator" : " · Reader"}</p>
-          </div>
-        </div>
-        <div className="relative mt-6 grid grid-cols-4 gap-2">
-          {stats.map(([Icon, l, v]) => (
-            <div key={l} className="rounded-xl bg-background/60 p-3 text-center"><Icon className="mx-auto h-4 w-4 text-primary" /><p className="mt-1 font-display text-xl font-semibold tabular-nums">{compact(v ?? 0)}</p><p className="text-[11px] text-muted-foreground">{l}</p></div>
-          ))}
-        </div>
-      </div>
-      <ReadingStatsCard />
-      <section>
-        <h2 className="mb-3 font-semibold">Creators you follow</h2>
-        {!lib.data?.followedCreators.length ? <EmptyBox>You’re not following any creators yet. Follow them from the Home page.</EmptyBox> : (
-          <div className="flex flex-wrap gap-2">{lib.data.followedCreators.map((u) => (
-            <span key={u.id} className="flex items-center gap-2 rounded-full border border-border bg-card py-1 pl-1 pr-3 text-sm"><Avatar user={u} size={26} />{u.displayName}</span>
-          ))}</div>
-        )}
-      </section>
-      <section className="divide-y divide-border rounded-2xl border border-border bg-card">
-        <div className="flex w-full items-center gap-3 px-4 py-3 text-sm">
-          {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}Dark mode<ThemeSwitch className="ml-auto" />
-        </div>
-        <Link href="/studio" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-studio"><PenTool className="h-4 w-4 text-primary" />Creator Studio<span className="ml-auto text-xs text-muted-foreground">Publish your manga</span></Link>
-        <Link href="/legal" className="flex items-center gap-3 px-4 py-3.5 text-sm hover:bg-accent/50" data-testid="link-profile-legal"><Scale className="h-4 w-4 text-primary" />Licenses &amp; policies<span className="ml-auto text-xs text-muted-foreground">Terms, privacy, copyright</span></Link>
-        <button onClick={signOut} className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm text-primary hover:bg-accent/50" data-testid="button-signout"><LogOut className="h-4 w-4" />Sign out</button>
-      </section>
+    <div className="rounded-2xl bg-background/60 px-3 py-2.5">
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Icon className="h-3.5 w-3.5" />{label}</p>
+      <p className="font-display mt-0.5 text-xl font-semibold tabular-nums">{value === undefined ? "–" : `${compact(value)}${suffix}`}</p>
     </div>
   );
 }

@@ -1,128 +1,73 @@
-import { safeDecode, hashQuery } from "@/lib/utils";
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "wouter";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search as SearchIcon, Loader2, X, SlidersHorizontal, Check } from "lucide-react";
-import { PageHead, SeriesPoster } from "@/components/shared";
-import { SurpriseButton } from "@/components/surprise";
-import { WorldPoster, PosterSkel } from "@/components/world";
-import { useApp } from "@/lib/app-context";
-import { apiRequest } from "@/lib/queryClient";
-import type { WorldPage } from "@shared/world";
-import type { SeriesCard } from "@shared/schema";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
+import { Search as SearchIcon, X, BookOpen } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useHashQuery, setHashQuery } from "@/lib/hash-query";
+import { listHosted } from "@/lib/data";
+import { PageHead, PosterGrid, InlineError, EmptyBox, fromHosted } from "@/components/shared";
+import { Pills, useBrowseInfinite, CatalogResults } from "@/pages/trending";
 
-const selectCls = "h-9 rounded-full border border-border bg-card px-3 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-primary";
-const TYPES: [string, string][] = [["", "All"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]];
+const GENRES = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports", "Supernatural", "Thriller", "Mecha", "Music"];
+const FORMATS = [["", "All formats"], ["manga", "Manga"], ["manhwa", "Manhwa"], ["manhua", "Manhua"]] as const;
+const STATUSES = [["", "Any status"], ["ongoing", "Releasing"], ["completed", "Completed"], ["hiatus", "Hiatus"]] as const;
 
-export default function Search() {
-  const params = useParams<{ genre?: string; type?: string }>();
-  const { setOpenSeries } = useApp();
-  const [q, setQ] = useState(() => hashQuery().get("q")?.slice(0, 80) ?? "");
-  const [dq, setDq] = useState(() => hashQuery().get("q")?.trim().slice(0, 80) ?? "");
-  const [type, setType] = useState(params.type ?? "");
-  const [genres, setGenres] = useState<string[]>(params.genre ? [safeDecode(params.genre)] : []);
-  const [status, setStatus] = useState("");
-  const [sort, setSort] = useState("popular");
-  const [showGenres, setShowGenres] = useState(!!params.genre);
-  useEffect(() => { if (params.genre) { setGenres([safeDecode(params.genre)]); setShowGenres(true); } }, [params.genre]);
-  useEffect(() => { if (params.type) setType(params.type); }, [params.type]);
-  useEffect(() => { const t = setTimeout(() => setDq(q.trim()), 300); return () => clearTimeout(t); }, [q]);
+export default function Search({ params }: { params?: { genre?: string; type?: string } }) {
+  const hq = useHashQuery();
+  const [, nav] = useLocation();
+  const [text, setText] = useState(hq.get("q") ?? "");
+  const q = (hq.get("q") ?? "").trim();
+  const genre = params?.genre ? decodeURIComponent(params.genre) : hq.get("genre") ?? "";
+  const format = (params?.type ?? hq.get("format") ?? "") as (typeof FORMATS)[number][0];
+  const status = (hq.get("status") ?? "") as (typeof STATUSES)[number][0];
+  const hostedOnly = hq.get("hosted") === "1";
 
-  const allGenres = useQuery<string[]>({ queryKey: ["/api/world/genres"] });
-  const effSort = dq && sort === "popular" ? "match" : sort;
-  const filters = { q: dq, type, genres: genres.join(","), status, sort: effSort };
-  const res = useInfiniteQuery<WorldPage>({
-    queryKey: ["/api/world/search", filters],
-    initialPageParam: 1,
-    queryFn: async ({ pageParam }) => {
-      const qs = new URLSearchParams(Object.entries({ ...filters, page: String(pageParam) }).filter(([, v]) => v));
-      return (await apiRequest("GET", `/api/world/search?${qs}`)).json();
-    },
-    getNextPageParam: (last) => (last.hasNext ? last.page + 1 : undefined),
-  });
-  const local = useQuery<SeriesCard[]>({ queryKey: ["/api/series", { q: dq, order: "match", type, genre: genres[0] ?? "", status: ["ongoing", "completed"].includes(status) ? status : "" }], enabled: dq.length > 1 || genres.length > 0 });
-  const items = res.data?.pages.flatMap((p) => p.items) ?? [];
-  const total = res.data?.pages[0]?.total ?? 0;
+  // Debounce typing into the URL so results update as you type.
+  useEffect(() => { const t = setTimeout(() => { if (text.trim() !== q) setHashQuery({ q: text.trim() || null }); }, 350); return () => clearTimeout(t); }, [text]); // eslint-disable-line
+  useEffect(() => { setText(hq.get("q") ?? ""); }, [hq.get("q")]); // eslint-disable-line
 
-  const sentinel = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const el = sentinel.current; if (!el) return;
-    const io = new IntersectionObserver((e) => { if (e[0].isIntersecting && res.hasNextPage && !res.isFetchingNextPage) res.fetchNextPage(); }, { rootMargin: "600px" });
-    io.observe(el); return () => io.disconnect();
-  }, [res.hasNextPage, res.isFetchingNextPage, items.length]);
+  const kind = format || undefined;
+  const hosted = useQuery({ queryKey: ["hosted", "search", q, genre, kind], queryFn: () => listHosted({ q: q || undefined, genre: genre || undefined, kind, limit: 24 }) });
+  const browse = useBrowseInfinite({ q: q || undefined, genre: genre || undefined, format: format || undefined, status: status || undefined, sort: q ? "relevance" : "popularity" }, !hostedOnly);
 
-  const toggleGenre = (g: string) => setGenres((l) => (l.includes(g) ? l.filter((x) => x !== g) : [...l, g]));
-  const reset = () => { setQ(""); setType(""); setGenres([]); setStatus(""); setSort("popular"); };
+  const setFilter = (k: string, v: string) => {
+    if (params?.genre || params?.type) { const sp = new URLSearchParams({ ...(q && { q }), ...(genre && { genre }), ...(format && { format }), ...(status && { status }) }); v ? sp.set(k, v) : sp.delete(k); nav(`/search${sp.toString() ? `?${sp}` : ""}`); return; }
+    setHashQuery({ [k]: v || null });
+  };
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-10 pt-4 sm:px-6">
-      <div className="flex items-start justify-between gap-3"><PageHead title="Search" sub="Every manga, manhwa and manhua on AniList. Titles with an official English edition are marked, and chapters open in the app wherever the publisher allows it." /><SurpriseButton type={type || undefined} className="mt-1 hidden shrink-0 sm:inline-flex" /></div>
-      <label className="flex h-12 items-center gap-3 rounded-2xl border border-border bg-card px-4 transition focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/40">
-        <SearchIcon className="h-5 w-5 text-muted-foreground" />
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search One Piece, Solo Leveling, Omniscient Reader…"
-          className="h-full min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground" data-testid="input-search" />
-        {res.isFetching && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
-        {q && <button onClick={() => setQ("")} aria-label="Clear" data-testid="button-clear-search"><X className="h-4 w-4 text-muted-foreground" /></button>}
-      </label>
-
-      <div className="no-scrollbar -mx-4 mt-3 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
-        {TYPES.map(([v, l]) => (
-          <button key={v} onClick={() => setType(v)} data-testid={`chip-search-type-${v || "all"}`}
-            className={`relative h-9 shrink-0 rounded-full px-4 text-sm font-medium transition ${type === v ? "text-primary-foreground" : "border border-border bg-card text-muted-foreground hover:text-foreground"}`}>
-            {type === v && <motion.span layoutId="type-pill" className="absolute inset-0 rounded-full bg-primary" transition={{ type: "spring", stiffness: 400, damping: 30 }} />}
-            <span className="relative">{l}</span>
-          </button>
-        ))}
-        <button onClick={() => setShowGenres(!showGenres)} className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-4 text-sm font-medium ${genres.length ? "border-primary text-primary" : "border-border bg-card text-muted-foreground"}`} data-testid="button-toggle-genres">
-          <SlidersHorizontal className="h-4 w-4" />Genres{genres.length ? ` · ${genres.length}` : ""}
-        </button>
-        <select aria-label="Status" value={status} onChange={(e) => setStatus(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-status">
-          <option value="">Any status</option><option value="ongoing">Releasing</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option><option value="cancelled">Cancelled</option>
-        </select>
-        <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value)} className={`${selectCls} shrink-0`} data-testid="select-sort">
-          <option value="popular">Most popular</option><option value="trending">Trending</option><option value="score">Top rated</option><option value="new">Newest</option><option value="chapters">Most chapters</option><option value="az">A–Z</option>
-        </select>
-      </div>
-
-      <AnimatePresence initial={false}>
-        {showGenres && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="flex flex-wrap gap-2 pt-3">
-              {allGenres.data?.map((g) => {
-                const on = genres.includes(g);
-                return (
-                  <motion.button key={g} whileTap={{ scale: 0.92 }} onClick={() => toggleGenre(g)} data-testid={`chip-genre-${g}`}
-                    className={`flex items-center gap-1 rounded-full border px-3 py-1.5 text-xs font-medium transition ${on ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
-                    {on && <Check className="h-3 w-3" />}{g}
-                  </motion.button>
-                );
-              })}
-              {genres.length > 0 && <button onClick={() => setGenres([])} className="px-2 text-xs font-medium text-primary">Clear genres</button>}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {local.data && local.data.length > 0 && (
-        <div className="mt-6">
-          <p className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-500">Creator originals on MANGASALT</p>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">{local.data.map((s, k) => <SeriesPoster key={s.id} s={s} index={k} onOpen={setOpenSeries} size="sm" />)}</div>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+      <PageHead icon={SearchIcon} kicker="Discover" title={genre ? `${genre}` : format ? `${FORMATS.find((f) => f[0] === format)?.[1]}` : "Search"} sub="Search the worldwide catalogue and series readable on MANGASALT." />
+      <form onSubmit={(e) => { e.preventDefault(); setHashQuery({ q: text.trim() || null }); }} className="relative mb-4" role="search">
+        <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Search titles, e.g. One Piece, Solo Leveling" className="h-12 rounded-full pl-11 pr-11 text-base" aria-label="Search titles" data-testid="input-search" autoFocus={!genre && !format} />
+        {text && <button type="button" onClick={() => { setText(""); setHashQuery({ q: null }); }} className="absolute right-3 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full hover:bg-accent" aria-label="Clear search" data-testid="button-clear-search"><X className="h-4 w-4" /></button>}
+      </form>
+      <div className="mb-6 space-y-2.5">
+        <Pills label="Format" value={format} options={FORMATS} onChange={(v) => setFilter("format", v)} />
+        <Pills label="Status" value={status} options={STATUSES} onChange={(v) => setFilter("status", v)} />
+        <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0" aria-label="Genres">
+          {GENRES.map((g) => (
+            <button key={g} onClick={() => setFilter("genre", genre === g ? "" : g)} aria-pressed={genre === g} data-testid={`chip-genre-${g}`}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${genre === g ? "bg-foreground text-background" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{g}</button>
+          ))}
         </div>
-      )}
-
-      <p className="mb-4 mt-6 text-sm text-muted-foreground" data-testid="text-result-count">
-        {res.isLoading ? "Searching…" : !items.length && local.data?.length ? "No AniList titles match. Showing creator originals only." : `${items.length.toLocaleString()}${res.hasNextPage ? "+" : ""} title${items.length === 1 ? "" : "s"}${genres.length ? ` in ${genres.join(" + ")}` : ""}`}
-      </p>
-      <div className="grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-4 lg:grid-cols-6">
-        {res.isLoading ? Array.from({ length: 12 }).map((_, k) => <PosterSkel key={k} size="sm" />)
-          : items.map((m, k) => <WorldPoster key={`${m.id}-${k}`} m={m} index={k % 18} size="sm" />)}
-        {res.isFetchingNextPage && Array.from({ length: 6 }).map((_, k) => <PosterSkel key={`n${k}`} size="sm" />)}
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={hostedOnly} onChange={(e) => setFilter("hosted", e.target.checked ? "1" : "")} className="accent-[hsl(var(--primary))]" data-testid="checkbox-hosted-only" />Only show series readable on MANGASALT
+        </label>
       </div>
-      <div ref={sentinel} className="h-4" />
-      {res.isError && <p className="py-10 text-center text-sm text-muted-foreground">The catalogue is busy right now. <button className="font-medium text-primary" onClick={() => res.refetch()}>Try again</button></p>}
-      {!res.isLoading && !res.isError && items.length === 0 && !(local.data?.length) && (
-        <div className="py-12 text-center text-sm text-muted-foreground">No titles match these filters. <button className="font-medium text-primary hover:underline" onClick={reset} data-testid="button-reset-filters">Reset filters</button></div>
+
+      {(hosted.data?.length || hostedOnly) ? (
+        <section className="mb-8">
+          <h2 className="font-display mb-3 flex items-center gap-2 text-lg font-semibold"><BookOpen className="h-4 w-4 text-primary" />Readable on MANGASALT</h2>
+          {hosted.error ? <InlineError error={hosted.error} onRetry={() => hosted.refetch()} /> : hosted.data && !hosted.data.length ? <EmptyBox>No hosted series match.</EmptyBox> : <PosterGrid items={hosted.data?.map(fromHosted)} loading={hosted.isLoading} count={6} />}
+        </section>
+      ) : null}
+      {!hostedOnly && (
+        <section>
+          <h2 className="font-display mb-3 text-lg font-semibold">{q ? <>Catalogue results for “{q}”</> : "Catalogue"}</h2>
+          <CatalogResults q={browse} />
+        </section>
       )}
     </div>
   );
